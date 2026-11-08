@@ -122,6 +122,38 @@
   .foot img { height: 34px; width: auto; opacity: .78; transition: opacity .2s; }
   .foot img:hover { opacity: 1; }
 
+  /* ---------- Aktionen, Überlast, Vollbild, Dialog ---------- */
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+  .actions button { min-height: 44px; padding: 8px 18px; }
+  .ovl { background: var(--z3); color: #fff; font: 700 1.1rem var(--display); letter-spacing: .1em; text-transform: uppercase; text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 10px; animation: flash .5s steps(2) infinite; }
+  .ovl[hidden] { display: none; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--panel2); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; }
+  .suggest[hidden] { display: none; }
+  .suggest b { font-family: var(--mono); font-weight: 500; }
+  .suggest .sp { flex: 1 1 auto; }
+  .opts { display: grid; gap: 6px; margin-top: 8px; }
+  .opts label { display: flex; align-items: center; gap: 10px; min-height: 38px; cursor: pointer; }
+  .opts input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .opts input:disabled + span { opacity: .5; }
+  .fs { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;
+        background: color-mix(in srgb, var(--zone) 34%, var(--bg)); color: var(--fg); }
+  .fs.on { display: flex; }
+  .fsClose { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; min-height: 44px; padding: 8px 16px; }
+  .fsNum { font: 700 min(34vw, 46vh)/1 var(--display); font-variant-numeric: tabular-nums; text-shadow: 0 0 34px var(--zone), 0 0 80px color-mix(in srgb, var(--zone) 60%, transparent); }
+  .fsUnit { font: 500 clamp(1.4rem, 5vw, 2.4rem) var(--display); letter-spacing: .25em; color: var(--muted); margin-top: -.2em; }
+  .fsState { margin-top: 14px; font: 700 clamp(1.3rem, 5vw, 2.2rem) var(--display); letter-spacing: .12em; text-transform: uppercase; }
+  .fsSoll { margin-top: 8px; color: var(--muted); font: 500 clamp(1rem, 3.4vw, 1.5rem) var(--mono); }
+  .fs.alarm .fsNum { animation: flash .35s steps(2) infinite; }
+  .fs.ok .fsNum { animation: breathe 1.4s ease-in-out infinite; }
+  dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: min(92vw, 440px); }
+  dialog::backdrop { background: rgba(0, 0, 0, .62); }
+  dialog h2 { margin: 0 0 10px; font: 600 1.4rem var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  dialog p { margin: 8px 0; line-height: 1.45; }
+  .calRow { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .calRow input { width: 7ch; font: 600 1.6rem var(--mono); padding: 6px 8px; text-align: right; background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; }
+  .dlgBtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+  .big { font: 600 2rem var(--mono); }
+
   /* ---------- Kennwerte ---------- */
   .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   @media (min-width: 560px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
@@ -157,10 +189,16 @@
     Auf dem iPhone / iPad geht das nur mit der App „Bluefy“. Mit „Demo“ siehst du das Dashboard mit Testdaten.
   </div>
   <p class="msg" id="msg"></p>
+  <div class="suggest" id="suggest" hidden>
+    <span>Zuletzt gespeichert: <b id="sugTxt"></b></span><span class="sp"></span>
+    <button class="primary" id="sugYes" type="button">Übernehmen</button>
+    <button id="sugNo" type="button">Gerätewerte behalten</button>
+  </div>
 
   <main>
     <div class="col">
       <section class="card gaugeCard" id="gaugeCard">
+        <div class="ovl" id="ovl" hidden role="alert">Überlast – Last sofort entfernen</div>
         <div class="gauge" id="gauge">
           <svg viewBox="0 8 440 372" aria-hidden="true">
             <g id="zones"></g>
@@ -179,6 +217,12 @@
             <div class="state" id="state">Keine Verbindung</div>
           </div>
         </div>
+        <div class="actions">
+          <button class="primary" id="btnTare" type="button" disabled>Tara</button>
+          <button id="btnFs" type="button">Vollbild</button>
+          <button id="btnCal" type="button" disabled>Kalibrieren …</button>
+        </div>
+        <div class="setState" id="tareState"></div>
       </section>
 
       <section class="card" id="setCard">
@@ -225,20 +269,58 @@
         <canvas class="chart" id="chart" role="img" aria-label="Kraftverlauf der letzten 60 Sekunden"></canvas>
         <p class="note" id="recInfo">Aufzeichnung aus.</p>
       </section>
+      <section class="card">
+        <div class="label">Handy</div>
+        <div class="opts">
+          <label><input type="checkbox" id="optWake"><span>Bildschirm wach halten</span></label>
+          <label><input type="checkbox" id="optVib"><span>Vibration bei Ziel und Überlast</span></label>
+          <label><input type="checkbox" id="optSnd"><span>Ton am Handy (zusätzlich zum Summer)</span></label>
+        </div>
+        <p class="note" id="optNote"></p>
+      </section>
       <details class="card">
         <summary>Hinweise zur Verbindung</summary>
         <ul>
           <li>Gerät in der Liste: <code>Pruefstand_BLE</code>. Es kann immer nur ein Gerät verbunden sein.</li>
           <li>Auf dem Handy muss die Seite über https geöffnet werden.</li>
           <li>Android: Bluetooth und Standort einschalten, sonst findet Chrome das Gerät nicht.</li>
-          <li>Soll-Kraft und Toleranz gelten sofort am Gerät (Toleranz 1 bis 25 %, Grün = Soll ± Toleranz).</li>
-          <li>Die Soll-Kraft gilt sofort am Gerät. Sie bleibt bis zum Ausschalten, danach gilt wieder der Startwert 5,0 N.</li>
+          <li>Soll-Kraft und Toleranz gelten sofort am Gerät und bleiben nach dem Ausschalten erhalten (Toleranz 1 bis 25 %, Grün = Soll ± Toleranz).</li>
+          <li>Tara und Kalibrierung funktionieren nur mit der neuen Firmware. Ab 9,5 N meldet das Gerät Überlast.</li>
         </ul>
       </details>
     </div>
   </main>
   <footer class="foot"><img alt="Holzer &amp; Hornig" src="data:image/webp;base64,UklGRvQ8AABXRUJQVlA4WAoAAAAQAAAAAwEAewAAQUxQSDYaAAAB96e2bRvG9v+Xt2SNiATt4i8Bim0kSZIkN/fYveuLOP0Fzqf6USCi/xMgQJIN+Hpm/LXYi/HPPoK/74INfEgAkjZiLzsCJBmQ6EfQvSRZqNp4du0kAFU2JI+2p0C94b9NHeA9cBDlA0BW7WqXQbcPbL8k+QjZSgmAVxjd21hA986SL7K37QXaxu8w2L7QyW9g8YdKSg5JCIDtkvINiguSSMsrYW1VVRHIW5rZNGOpCqhE3e2Z2cxUFUCWeQKMVjYSIEmAOM6UBEgSIHgC6AhaQR+dRwGoxe5uSd3dn/BAX+lulddvsrFs+x2wAQkJJLSCViRgIbmCA0BVTS/d7MsDnXCuhCSBTTf0kgRgA3e+84aSruBUVWWfMjL/2tgJEVVYSUKVYe5sv14om5EWScabV5Ak4+wL0OIGn5G382ex5dO6W1UJ6Pt8KimhDr4okWzstxTJAZJU1Z3iKpLoTaoqVlcZQPn7t+yZzYxVVQWb2c1mbMaSCpJFgCRAgpg1KglQJGhLgpck+F/QAj166/J+qIsfrSqA5JfYwRv//4vltP/3eL7es5aNbIgRAsFda2jd3d3dvR93d3eDuivtx62u1CjukhLiIdlsVs6Z1+vCmfd75uwu4WpETECqX/kHPWMwqnt+819pqxj77EMWjEEf/fe3zitY1OZ/9Mq5xKCn3/7HVHOk+qtO6ceOk8pg7KxNFH7mdWhxwZkxHg0Wlyk4QhV/VNcpE5F+ntQmeuGWCXtc2GKbH61Tg9vmCdcRCvyZF1DzznagXOCPZtGPBvngCLaiOI3TenwlolmkkcUWVBwZRxkT7RZmicxSFIePkNrOt/OapRyMlUQcMR1uh5YUWE6smDhiOqaDpS3mcjAxesSUlhlQLtg/fcQUS0KIIDoqjlhSgrj/WPxKlYJBWRpW9wI1CdSBUjIaZXgXUhulyjR4v2GpBlaum+rt2z8PUGl4SgYKHzAF8gBMgcIBtbGKQUtBH8CSWkhOXkBKLIO2qMzgqAsvO/fcdeP17M577vjhd3/iJHUXMdCxgkEFotyA8Sc9fdPGleOuvQdu/+5XgVQG49Fk8yCDDU8+/4IN/ZGdb9+nJXO4nVlnSnDpFY87jtL+Dz66CVJHYtUkGBd+4uMiRtaBYrdDrBtz7MAhwyenPL7+gVUoZ84Fv3e9U7rnE08VSTmx5TcvCw3EyG1rE7zhwz91GjfeuHR2t3PvyqJ+6GdrJ2pJQEQowT2/M4WpExgfBfEz7gzVF07Jqea0X55zr2upIcLM/WtPAGsSY1++mPz86Rx3hbvXtYD+KEtX7ToXo898kqKfRGlEJG79ZbyjCID5/kICBESTgAgREsFBJxs89lGj9KOiNFzmz1mDGohqU933htC+ox/zZOo+FUCMTd4PcOxlK/BKtI664jHjqJNmVYlhhhL50UvWU1dG69rsnDGy0Utmmd2PPRoqkfUl5CmlIkWlToLVJ9M3uvXgWLNocDajnDQw7EDKaCV9o9uaMScaEMVhLI8r6oW6CKa74aCB6NyZnVODmKbw8NzimJ0bkAgQQ5SioTxEsS+Z0LVfHY0yH9uAWoXt3smwr3NFw0GiKZiZHYghOTOHEEr1YYLSALXYvdc6KA/WoSXSdTtNf5eWHgNWEFZ/H2fQKJQGRoYUTEwizL9FabgM6hb8pw9tLUvXvV1Fa+NKV5FjNHqOSPuuV0OHk163MLXw5EiwO3nOExzqj4+jKAg78G+yjgIQ1LuX0GJUfPmqVBcZ1//fXXOT5zweyxF84U4NREnEwM02GmVt+9XNe0Sae6oFWbHj4/93e3/FeS/GCnD7pzvUiWOAR2KaWMYsfh9RfMMrNjG46Yt4gQ7/GQaMlYyNQs3Yq0dq5SK94R88SsQxp4UZpxwo4X9/bgeNnztUEnbPH9XqomL37OjEanZdsQYtY8GVVhdN/w+kBOrvPESh21/fJJwNqEmsnqTLX72BIsYWwBN/5k6+v4MqAhTsGPUcod8kdXHzr96UqrEzjz6BZV1+4nSKgjhhlEoMmlWPwHPp9t+tDYLCiIZUYvWmnoK8GJlE1HbujjqaxGOnzGoGVfHY0VCm1n9Sd3DtH5E1LWeJhxNkzTc+g0Lzp1xIXrwBMWSLNf9OkFesmEIgnuk1jaq3/or3yfrC1jdgmUh7j/Z2Z/cZ6YOEsawHF+O5SA++KSInTVxvnql59ICGETpwD0FhTB6NgMTv1gtNye01X0x1jGlOAHElkVGsPw+1iV+hYjn0aJfaOKdiOee8eVGY+HsiIy5OtahLItoo9lAc2kgAiP/2fpPB7lnDxzVrAfKjsAzOSW28uvFmaVlYhPXq01BOEFZS8S7yxsPPDGMX0RQcOFQWYhcqEKwiAMT4TbnhBptoWev/MZbB0A3/V+fkK7der5UvH2sRa6cotAVCJYlnoAxEH3AKe3ULZmi5nmZxzF6vC6KFSmBzG48vo+XA+Vlar75jbaiIqdGC4NB+ogQOUzq2BlE8WhWJW1AUBFOgzPpJFqXYgBeFzd5OLAfwu2k0FYSP1mtFW6kAPCgO+qigrVizsoj75ijfMBrkR2xxQKLtnlgu/phEsXlN6zqKaCHGiQJZWctgZtqiQGxc6SpwFmu0CGbEMvneVnR4z34iI1atRyUwRun8QYL1qBO2LxCUrp5AFFqZR2f9kfFW+yVfHnoMPe3fTqGPPQwrqfReomDuPoIxugzmtlEqVq2ifMGLhnoLKoJesExqeBZ3EAUcS7HxSfLB3TsJogtp+hBRwtgkxcFdOwpCf3vNSPjEBhb2WE9E2mQQO/uKtP1XFC3E/abx/RLxWHmBaeNOLONc3zc6lXyWUsXEWlSmgzfhGU9v+3u6P8hy7e1kbZxvRMqleMQlnnIVv+m1MuKbWGAlalDyHRT7xBRtje8RGdL3LkseOfXL1CqWjaPazc20CX54I57B9c1vJ2sa4dMzCrKJ7xLivpKZOSDgDkoDbaLqt0j8NymTxN/XozTXzuZXHTenhrCPh9qM2HKxsk0wO020SHOfVuQSfDWoUkqVOHinBdk6rrpWLg4QTcHhAdiNomgdVtPSuep6vInQ/ltISUJmTD/jEgrfiJWJo1aEloftbUBGW+eK/RYZQqzbzGB66gTFumLeAsYplMCYC1HobizUtK7mPq7IgOqXAwiIffTUFOy/CC9bTut2HUa6++/kOQTb/vZtb3jHH33DKXW77VNynA0oB5jvm6N85gMf/NAHy3zNtl+r9cE9ilzgn3zK5nHGtr5oC5ZortNHX2GxXI104K1wO+r22nOA0Rgl5v5qEm0j8DWPGUVF3Z7ICO9bH8og5wWX7z646rgLENnwZ58VQESRtFxU7cYmUZtIPMf7ReEDshL4/1FTq4lxYorWdbtgnGTjz6dUEQzWFPYnHxc4jI8WzcwvF7NtxMQqOkz8Ib2STk85FqOlWDkBh/arTYduG0jGsSejHCQiJCvojVyEAFZOokwwvaBYHtQGwrvAuJJ+DGNyK4n2EaCZ4UGQSJw6SRS07lc/nIqGCErF/atpw0fdvas+UbHkaxgV0VFATDrLeSwSBG8/DN5F7eyeQZ1Ii0VB49wBzDuIumL7YdQkLRNeuwOKgbAO6hrlIocSD/keSbVHSUQEXLmK0qjDG9zm+4AvAu+RveMqTHWUeST2fuUA+YUFrz0TvoRWJApTnNrBmkReTOUgce2Hf4iSRTSEZKAvPX4Ez4kq0VzBYVi1IhRDMnYSTdz8ga+hhOdksONDf+tE7lBYZU0pVi4Z92e+c7KyhclV8wcDLVyKtdDI7311xVg1t2AB2ruFyGFQPfoffjLr5Gfu/vKlYCJvvPG1qMGrb1di8vKzDzPsG47KmdCjPrvDKVz48c8cA4m80j9dOF1FQ9TvwpYKkEz9sYnerIKOR0as1xeEAC9ACVhx5svP2jI5qul7t996/b2HkNHSjMZQn8GJXmg4ATlIgqMvOfu0Eyxgz+7bfnADJFE+sSAGQ32WsOHkQ9ZBUpB10VYp0TIZbc3J24CCoScPSk20TKJ72RICFeB0qhzeCpAlBYFERATtVRADaHh92sqkCAGKCNqrIDCzTGjRlQsJCBV1qJRyyWirlHI2cP/qLIcmD/Ipqbsj1nRcTrMrl4qphsm1GyZD9YFjKiB1tvrSJ2w6uEfE6LHPOK3VsZc9ab1jM7tkD63uXxIv/5naMjM3noMtBXPOeNbjT1i5PgGz9179L0+bRNZJxS+7k/XbVqGSxEfcydYXk+5ftoRFE/hjSEtAPPVZL1kJEIAAfu/ZhLqAzdEzaaC28ZEyY230DZDwNMX97JS7ZYIeS3LqVaP0JSEgiBDnvvpUrJNdskSj2c77KBarZYlGRX1/MxrkQ1oCiYmRqJNo2WfFSlMXc5T2vc0IIivd34RKWILm+4kkWltwOdaFikSbI8WlYJyxX0Gn8heQOjgSXhL6mJy8Eynn9Y/HpXZR5EcSEWpQEBGLzTh9LkUuBKEMfX8Oqd26olXj6IhhLCwGGqvFlnilO1m3r//zU14SyvT8I+2CNURGTK3gSDH4r5OmYsxsfurAQjW/h1hc4kIiE7bnFfAHXmfEg8bqNuCUeiwuGXKJMC0CSSJZF7JUDSRTETC5aeO4VbMb9syNrKetUqoGkqmjmjOwjPONu0d1zN4UufUbUKsla8koTUktlBAQgQ0o0SwsmQFC4WCJ0pSKkuhaySi1JKVokoIAFFpN6QElVt9MBqyivRWZykLqzhKw6exTTj25d+/B285cAaSytgl08tlb09vPp6USjJz93PdtSntnXn3+SsAKOlcCNj/hzb98VL3TX3bGFJ2KYnFqSKtup7DutRLTKBPMzBeJarQrJTjhPf9x7yaaZ6/58yesBMuJDf+w9p4qYuzoFb87ZmLLe7917iT49CN56he/cCVo7tDcLR+Ak371qjl3AO9f/w9PhtRkPPQf//kja2qhHTPbH1/lDFa+5vM73B3AZ2/9/Ms3nndlCIh0344dO77HYMwWBAsXa/rVPWWCPXtawS5K988QBag315HBaX//vPUQDoRkwF++ZARlzB95Blm/DL1vlzse1JNn86ynk3/Ff/3yK9eCByFkwP/81jejQbx6JIL8RVelBjH+xreeBh6EQAbcNXMWpV8fMG7DM9Tpo/zwGnkufjRv0cqKRLlQN4k1v3PAqTHRHBHijJc+FNQANW5N/UvHPuve60uQYp6Zuk4NwacuOItaRtZDVv8N2YVUp0ykFWTPeN4jqDHRHBEk6gK3q5u+h3KBP/FmSvVfiEUsuk1c9GP3nom2NZddimdIud7FH/KF2p1BidGUmgZrE+W1aRtqkJEP1ZkN59I3o2WEFV014HxlznLAiyl0u+ff8HZRZsmSpVADZl1UvOyQL9ROeyOqY6RM4cx/e989A/QodIzWHtxFDBQHahofR4mhun1vAPhj6pJSq7e8EqvbjRYlp+UM0SrBOBLdRs1YKNpAiOKqpFu37d+QgF1F4UBw1xxikSa/ODwKVBA8byxoHWwmMuLYFxzcNzU97uMjAfLtjtokdtUhhnkt7d0o9w4ClRD6n10DCwWh3iwRtv1egvIIqSuCf1BdkA+x6US3diDyYv0nKQ9hLcTmnaIwXECYCmz2e0Sb1tGqlhGeSmz619xABUQaQ+z5L4Li2gQudSSO2Ua0isSOg4A6aOmYW0AMSLS29BmiwBPNdcqFXX2NRXRRhwj3oK0bzM9OURx6K6I4NHcf4u8OWlGEsXvviq10reqkZ+BtgoXfGiMlY9gGhug88SInH8b2K786E+se+XQsMgT/2BPtXaJxrBXxqS/c0n/0P3kdOdcs7YVu/TtzSs2/+KQt0yNv+B2PToxY+ArRwvnWI8GA9eMOKM0WeNmwVX2n9gL/2J/tYHDT5RS6/eSTHdSJr15zr8ZPOfG6FmL7P9P4Hi/A0kStNtD7o21lPvsaGt9oqEwDiXUfeoyJlrX9M6PGild9Yvt4ANjcRdiA6C2ixKPrmmZhN++gioF65511ZEC/Ppfa1OnHP/P/DKaaqsSjv41EkBI/Mc+pWovYXKCYmIJ3idIYnyclQepfRpQlIHHCT3a601q8hjF+093Jvog0EIwvmgRc7r1McDpVHQxaxbkp1FTrU1fS0u1Lr96vBHg90pstOv4CbA6g4tfJidFNiOkCUAV/o36JLmNEABYnPSOsqA/G+CrcaB/M3c7CCT4fTaGdxAD4IgnG6I1fipo8bf4WebHuKdfiTZG2v2WhzKsfrqCiUc6KArdrR43GxNOwDKTVwMEiAusl8u4/3WBGo/EB7xWB2DqP6DRs105WW6UmfIZsWiSiR5xxUi7YuKDIQMUvWN0E/iJQQdjsu0k0h/CCfvW3pCbjnHmLTLAeUJnYNK6Cvv8xFc2VXtlGNvZNgnzUJcDczCZEY2jXHDEgDqASjxhQQ5CUgwU4fcQzYhSj0HRBEE2uV1Ps6UoSpXMFdXopVZPYPEOpgMmyxMZUEvVjlDKJx3vdgj92CpWIMnqn5dx+NEK2IkqMIQrOx2kMmzdXiRi7Xt5U229AFMCXVRUpF6ovxnKbolWvINQ7xAkplAnt2YwyxqkHPXJixD/et8gF267Ay0pru4LUEExSOvPV/9tXg9ZVgR089MldRAFwNIUHDhJFYifZYBOowOpr6Nzn6HoSWCiAhcOsVlB43yHyYtNup3QdHzAnK9/8OfswdZmUcXt9BrzA2fakJ1D8kq/gZWtRzp1yYz/eBBspDdt7oLvZfUQnwVqEikbHKQ4OzBedcqCsWntHilxUL+KNq75NXZQPph+MMqVi7WqlADxEWGWJ7sdHUItiK9MBQ115TbfiIEF5r8cMykFSQeKiflk8nEKLF53XX3jk1nvxLup0xeuNrBUE9x2iHhhUJK/bHMwppk4pE9WJWG5fEewzuldHsB/wouhzT22REZtWleil3lMJlxK50E+uDRKP3VirXfSnzyYj7kMZODgXlBpr2mwnmnDOLzOOPxHltreYpXvRuQFrCsT4SrbtIS82ni5ljE95j+IHF3GfCypOHw21qv0TGPl9lBrlYh0quwVl4PF4SdJzpjwjfloU2oN1NrEOdTRYFxBpgu1X4xlqPTGsqeLihdqLfD2WgwkGEyfSOpi7UCUqaiuclrdjGYsnPNhTQcVHCXJ3FUHQvVUM81AJOHyDyFm8dkttAxXp/71fdqhP5Ixzt8pAwRa8hcfPkViUovUdBxRNipE/FJYZ4dHzYU1h+66DKBlqDMXKgP/xlJNv+etgpEpi/APe97L+TImcK+4eNZCt/BpeFOxcYVYSQ7EW1V3fCm/C4GtBZRZS8NN7FDR7XHtvVRbD0FBapx/+gDoz+OPfAuyiU2kZzNxBaaj3bVBKI2ydiSgh+B2qkomhzBJFiX8X+YD1K2jURUah9FlPjJaME531ZhZV759FqfGVr2jz715CtBATV2EFoPjVYwGOvzwog/rFpExwNNFZYgflNf92wCKD4Op3nLelPvqCZ2+l0LXjE9RsJJrE+iHMTxMdeYvQ/H3U+sT15gWEAYRoveGqORUh3/vlD33gP/a6RHnUhx6NNUHQfaJt2J0fVp0D3Hs767VjeEnow7tTIAqDIYpug7WoSDE6CXboD1VEHYow2sePvhd1EZ4YdFqH5nayGBOjLTCduC+8hJoENVag2HmsjCW/grYaBVL1URalf1C0DAdM7Qhu36Zo0hAMa4PxCusXWQoQhVZveD0JsCUl7iVaEIAYG18M0ievSV421J8etqb+UPqtSHycXkn74CkYwPTiMHXUvSEhH1atw6+bxjvziKLgGhcgtqPOxBZUEAOytVfT706cfYw0sB8thpEVaAhHd4Ch3aTwYQQ7XZy8yrrquXuUcScVQE33orwawHwCiG4CpkfCWMQjKxlm3QWC19zmvuAlUUcR1ADjC3gXtfkNT/xv6gKw3n19A1QUraIoGoD53VQeHXjF7hnE0KOkd3goezpBxtr33OkVtQsiIIl+mQbYtouovSzcVP/tOo69DS8Jm3lciHK3FiiVhOU49OW9JPcyj8T0Nw4QNCsKoo1FgfdLRLSh7gQSrP+5G7FE88FPvnYfUZK94f/rZFFLDRFmxL/+FYzwkJmomyLcnT8cBeSeswVUorDknpF6uaD36Y8eIlndr90BV4L5z3+uR5BdkLv7gFsb5J4ZHS/pIfeMNJDwXBiQqiqlVFVj8Lfvvvz7G9HC7hu/+Y2PPClUEOxo4t4H/8ENTun2yx8NSVS80L2p8UunSBV/WLLxvDJS/blnk3/vhGeggnP/8Ac9p/AHXzoHElnjtLlRsguoRDppe8F+Ime8fKaAq/ehNX/sBRykfbUG9Q4G/OhnqCm9ockNVj7u4RccN1XXdmDHTd/6NpgBGI9+wfzuiDXVGNjMfyLECc9/thqimg7KFaed5/KBSKtDBViCsQe/+dyT164J37Xt6z+8ZgEzih+1oa+BGLmRcnHBC56tgai2z1AoLnzBs9Wg/ioceNTz+4KqH+nQtbhe8otv3GuRNlv101WM0Jikv/lB5QXGNU2EVQDVWNTq1UAymkVLo7VaDNcSg2kkYgGgMoYYRYiujbYyihXV7e5kf3QpyQFJ/c9QrLnrMoCS3Bk0C6cwJQLU5AwqpYL2pu5AVoUHQJJH0NaUC6elpZSJMiylMrBUUIfxofnZEYgA+dxTGa0Jh7c6UeDccEPJoBqC5V1AcL+YeJn3jeZg793XAusf/IbnidLgKwttHmCK9XfXqAlj9Mr9E2eevBWn2PgiD2wrfs7rlEE0eqSimq9/Uw9sZEfdepJbBhyQUV7rD/r2wAbjiSfUDDV4BcED3cRJlmIYnLkWPeAhcXgvREcRrNzg4gHxN79Dii7CEzsXEA+Qb/9aj8BUFE5i7ju7ecAciquuAfCQCAgZMPOlP50hHjARxrf/5qXnbaTQ77n63/73NlLwADpgni3nn3fm1g29wyMzt1199fV7wAiaAVZQOCCYIgAAEG4AnQEqBAF8AD6FNJNHpSMhoTT57ECgEIlsRFMg83M6kbL/mvM7rP+M/sf7M9j3VJ2P5XHMv/m/uP5h/N7/KepL9VewF+uf7Eeuv+x3uO/dX1EftL+6/u1/8L92Pc1/b/9L7Af9R/wv/h9rn1Jf8l/zv//7iH7R///15v3Y+E7+0f8/9y/a9/+PsAf/X1AOFE/qXn474/zf4z+bfji+Q/vnES6u7k2O5lE8uNQ65t20NpfQR9wvtvgGasXg3/q+4D/O/6r6Wf6rxgPs3/G/4f+g+Ab+U/3D/p/4v8oPlC/7v8x6JPzz/Rf/L/UfAV/K/67/3v8N7Yfsc/bD2LP1q/8R+P20q8P1hfymuSLJW0Uvxrlez3hQAEo9RzYmis1Fx5kkpWjkjsoPkyH0xLrDOzYOa8HKAFLVSBSzRTq56YhXeXJtAHEmB2LRmG8f7jw/aLlSPv3yITGzUgpKp/kszVtoJqnWQDjfFQgBjNnuGhrbUL82x/4f8O2snT1O0z6Wa3pehmseD7i9CgTiM5mBVZKD0lIdlzX5jLdfwO9csSAoHea+hH5bi5U7QTWl03EotmqVOjBDLswiuB/3XnwNVvbDonGpuC7WlhjRoWLUZOxiACebpXsNpPCDQxznggr94oz9tQxw0CANwH/WYxF6j9UtNjsjtpd8Ph3wqmznAT2uRQUc9sf2I2wDev3OYx+NsFmlcTaOuSb4MBP6UaNyU0eY+fRR+oOP95sF9laXcWvDizPOUWImG9SoWHQ5GYRVqfdJvoROtguKVCCASupt3FkU4L3BX8GpJw6zFnmApuy58vu/+X5IjUdi/AbdgSz7qqn33I2bpsm/hVw1cGn7rCOfZzFT8736Rax/ACx4Afx95LOiS99sM50Y19JU1rfUObYZn9/HF3zGuMiIbUT5vJFHxMlYVD69VJVZG1Wz8SneFvFBY0uXJKq2sYkzkvkXDx4+7691O/Qmuo08ZrFLm7u1IbCyUD/KmmD78//YmnHMe3+0oUZ6m1PnD9LMiqKBmSSLUKjmBL6WlqOpCjJsWmkYnYdQtezikCkpZ0mSaZa/NCRZMxHciX6UXDJPmMRZZoAiszXmNYT6H9I8dQYI96G329euR+SCIrGawXS0d7cIMJM12ttv31wjnOoJBCk4yyreK1Uc/uspWCOg0+X6aXDze9Z8+0DAAADSvE9Q4RW+LiEEmAJVr+dpLOzwm5WcPcCMaVjFltdTan2uffAGjq+urAwIIlpIRm/TPqDjBXmR3DvV079Vd//5VPCv+kuh3be2V/zL+EcYPj/nsP7o4LqG4KfF8zjZsED7U+JqlSYKbQdbPlS+pxAKsFzy5a59cx6KcC9Y9M5z9AX6/bFvyLhiPqcvhU+I/8v3XrSSZykuYM5soi6SbwH6lj/2rsUWeAxCbyIarwcvbtcP9IRX/rotxMfjWu8eYLML+FxeSSRSHAIiF/xEKDTqO0O5kKLc/7ba+BdZZbC3kQ/VYyvW6w5nLGnv/gMbYGLjRJS3hDXjOwSWPNOKFy29jGDEhCvDay3PyZKieK4jxDMQW1Ce9mT6AANpwFy6PYw+TRipslITGwFm3DgEXs1Cn347Y+ok4iQm7X4YANlQx33Xzz8RvO5lo3wBkCU2+AstOR4dyRFW2jLWmVrLxWA1SzgDlqn1337GkwUCYiJ50g0jXCyInv/pExTb34uQMI7bYRrSXDpCbT0yI/6/FqbupdfyLT/RY8u8aiOGtRDP/Pi8wtSl8XSB0VSHWicYsstOwMKPdYDLQQ949w18+oIss/WDsEzkPRUN8CcLm2gMDzyw8IWjF+JcS9fxzPYhZq56xrmJlV1B2SJB+XbW2021R5EhR1CtmVUREy37U3D9NNYHR0WXTOzPkhy5d1R5BWf9aoDKvWxEQVHh/h5GsyvV6FbirsiP2CEEqRe3ad9aP8mOCapJ7gMN6oA3+vMh2iDuEg6l8Jh2INjqzEPInaFIBWZemmgLIu3GxQNQZdmlC13FJD3ajQjHxxRPB2I9dRX4aEbA+XXrwMuTGWqVUdviLkh/ReC4on908C35d2lS9f6/zvZPH4MehRi641zSIUnSrkxPtlNEHDgh4jgfzZU4VGVhWWnB7qCTzgyRTwSA8KfTmdrq3KPgDYzyFv2TQatf9wlNxf9f6mfKZHD9TUi7kvyEeyvEV3jbsAr7/S0xVmvv+B/w/hBsCNtfrjJwlRdf0kBaQQKg8gWh860INlUafWLPHtLjirL1mPiDJOrpxDxMNcKQGBBW9FjIwsjjrFzSL7P2IQ2tM/3FsaACakrWP+mskwMoyOQLw7psSPlpjcx9mjmm2UeQO+FvwN3MEhinWB1wNEGKmctM7psnamQF8ZBk0GSiY7vyDObR/4avIgs3SB+gffXrHtdjYfmwQCtbPrH0Cm8WkW4z1ysuCn9CXx8hL7n8XG7wFc13x5YtH2uM6VndoqP9FV8uNPYbUWIbEwscEzb6a0RzUwfltoStt9RDYy5azP1PhpeGoD9/xW3Hyd9Z23SqDqpWrqf0I1gnZXykOb4agLSndJdGNd+K7UMOh3zpDWZipFo/pk1UWmaYbiaOZPwv/V5+y7czDCorA64YP0K549qdnB3bqxM4U9mtFZniuC5xG/+WgN3dXe/d7cgO/esiqhEVQULgeGTE08HDk9pOgyD6t3uNHcLMob972aMlXw0SYuk4ufmZsz8W8PF3a0tMHDJsu6PaZbshqha+N5jIT1smg0RgdT2JQwwcIcR8bVCdeIjATamB7cI7hQicnsOz7BFU/2oFeq6uiwjPtKdSkZQVsBMuW1EIn01k/Fcp+xjLRVNRwYcahon1wNXmU/H/AES0byrVH/oYOqNGa0RDhccOd+wmkJnV49gLplppXqEIGXH+QdQlbLUmLM/A/yas6FWahp3i0KGHcJ36mprGxK2XykrrQM5eblwREFG2MqzCjHRA8nDjAhbpvfKwRXL228oUF0MMpZfICucToAAo8LNiJoq6fFITu1wIt30TTpQmExMvgnGCo3CA8eIE2lw+wt06khzpgPF2RNNsM3BxDt0DBvG+p5gZ1Jvsdqk2qh74VlVhc4RVJNtKgVxEUX4q/s8H7EBhYQqIpZ54JK+pki4dtJRqDql43jjhrkY71STxmlxEg9AygCRDjhMRKo3rH6PpFugh6Nqm/zVLU4c4tFATaT7qe4+dOOpl7GO7J3WZ8lSYBmrDjxGgvcdPE57exYfGA0lbUTPppUkP6Cz5uiZh0umpxjgJ2khykMCtZTxohMEcfhj7VgcKvjn8xhG1wrP/bDd178h8+II/OiIB8YDgVVLmoaiKZ2nO/6KY2zIkcM/UPhstwBrqGvHteQCp1UlDcj7FP+7XtWIC9F8qIQPOPWUTFVCmnAj+tDjlWooiGK2NOylO8ciq9WqeUfiQMfHZcuty3qiDiy3/C9pE/rzwy0dW85rExfeUqcbMdUW1XNLJ0wFdUfI1mbqok8+I0NvxSiPOjUH9VoCJwG6jmgKE67/LSQ1TYevO5EnraTXXLJlh0zdsmmascGXrNUU3IPGoFyI30YdaV6cgLe2iX8f8UZQ8aJ8UmOwyKBQShDyB6CAjg7LVfjN/5U/ejv0qukzNdVb8XlJMrquk+SGwemMGVBpuPMMtFtw/pqhUVfWEn82GddasWV5MnU++/4DPCDN9SPFv3z1xuOpS/cqCL57MvSxQ1YRFXbPb8By6AfwQaj4iSUTVhFpMPfDyQHBmtH5QpaoYttcyLAXkKxLV/UqilKB+3gUzCKXIe9q/aEx2bs5Y4P8dUb+n9G1qRCu1zqJsZ3BsVvd0wuCo6FxUkUoYCCFZHwM0JuH3T1/RTiTGgfTKasH5hFFCLJKhGuTBXHUw0ICwCBZsbN/WerK4iFvQAM7pEzd1FBIPnqVj9MvHigXS0WC88w+yi8lyRoX4VSAuFSwsSpIh35NOSUybrK7iwyYwD6y3iCaPKD8wF8VUa5hdFUB1Kq5lyNM2Q1Bd5C1EmGliWNvEfaVSJC+mTnRtWGYXFn8wiiuktZo7uO0EupcTg2ksjyM8kHVwH6iVQ2GDQRbaZVMa8jGtYO0WdImYfernDX0KiGN1+CeNPvBBathY2cCSJTIEjuCdkHmfmNX/Xtsx1YxDOwnpU39l6rDaFmxdqBv0s6yyoyaiRwYvSmraAeOf+xK1MswBTl2XE3e1zPkaqsdorerzl3xszt4q/TFuIEYB6L19mVsfZhPzQLH2t+G0hsmiFw1ZE1j7dGsUppQd5cPtCJQmIV21/Vm4EmoETivPlqd0/jfpU41SFgsAJsP83fxHmTp9nWOV8B4tnf4GRwKE7q5tVGXxvQvNGL+aLtyCiuT0NriLPlaC1wHZr55881wdcRkIvlgELYY/6avDAhifSDoLEYXqnPyZTNxL1qgH7QxKknri3T7wLJRXlWwr+PwVOVahniUs05u69+eWO/a/+RrV3Wd8AntEAT0P3TfC6Wy7tfxEEV69h9YWZ7/R2J0tjKpx848lTD/tNyzRu7TGdDP7hgcCrL3Wc4+qqvy0/RsLzItcIaBhiZUtxOph6o5tDcKfJxVlSC7xgDeuddAEHXJB25L1ZEjOXEvKRFe/T6hYEYrZ/nRJaL0pmoCHXmVlFwIWVlUeBHIvNQl0I8mCpsZMNf2gepif60weZIy/Hr+CEIiCDtIOO07zApqqfHx9GE3CQERojhmjKYJv0TBG1KDdQ67Aud49WBNSUAhqLHh2JriKEd/qhJ9Db7A+ka+V7rq6ZBjM7Mp1H+trosCdbgxq4oiJ2AlDV3TRSnMg7d2UxZZyqpx9HMyneq1zY9mFuTsItYoAXzO/R2K8uxMzvAmqYcd+dwcLs0HUwGlx/TNkp5xb77lW9J/RmxhikUdaiagqd3i9Oyb+7SIPNDe3649vUJ+IZifwlxgSba0CaDSdmm+yUyNsIYHML/7r+DlRDuUZlaC5hFqseTRkKLg5Ch+0LuCa9g9cEACsk8htoEz8But86dT2nh7McEvg1n3bOpyUS2CCvUGNAzTCxZzj0TUrKYYx54+LvS6EO0xs6xfxZbuo3RPeXM8f1EQ9RJrsVzM8ENcELwYmgAqHObI8+x00ifnjrPttclfU+S79aY5TZJt5MQKV8LoTREWtEMuvfz+g+IEpsqm9FKh5EGjhGVltvjnAY6bfNZD6QS41YPguJmZcGsPYtgKlFPIF77oNLNYIP9V5PI5WfiLwFvtgF7mWV8J77b37h9E7ijTeDGMyb70TwvtZY0dR62c+dcvQowY/d6xSCPztIuPQP9fzZNkjKDwJlKG7C5XMF7AOb/X+l99r5P54sNdgI2UnBKbtiH1iu30o7DOfxomaGMSCfZ5FNtA8+kec947SznKWBNw7iEir8uf7hLq79/MuH1BcVvPZXogl0mJsbJq6981DpOm/+mfbZcJZVaAlmVI9nnl9FcK+Egmw1zyEtmVSvUvdoDOe53xzvSMqTq7gIjCpWmQU/FRRd9gL46fL70L9pTQqKpCuqNVY1OU2GVRwQ0BRH4CGOE5mBzNL8joB/nyMqqYgyICIG+4bXS6dfungjjOBPhVFRXVk3H3VK417nW8A9VTBdTJAFtJY5a1LsCEML1UIOmGUCAk1qK5GJSUxrCmCTKDUEag5kNFsahlYs5yfM3HmEFTMyCPza95efDHOTGQx2i8VJGCtjhYXlglM+DXKWVwvd8sKlj0Ek4dk2bFSyrobJSmMKUi0ka9vsJPtyghJB624HodnImSG1QMgE0S1Y6UWdpacJTPm0yufdBGl/zreMLu6jKtm/ubo9R3XxU6q0WNTFoesNO9c4A/MtnT88r0wxE45ED3bLex2N3s3lbW/w02mCRKDy6n5J/8o18LXhX1/1SEbN2qH7qzlkE/FYABRUUK+tf5j+Gxt8pUOLxPVffoccZNgHke6rFlShqjOoeS/tsWJ+1O4by7k0xOGFhiCdBFsvbFGfYkDKb3Mw0GaceMsKcSAuXLtg1bmGhIOAXxwCto3XN8rbdk3Uz8y36OZ9i8MIKYdGANDgG6oyBEsYg6AeU2Kf0VJfhr4wz/f+E4/l1kstleOyOoz5K5GM6qtit7infB3bqWaP/8BvMepufWDpWejqVElNyn6r4b4bXUzmL7ZagpbdTSLRHR5J95/lJJ3WZ7Wu2l98Y7TMA3fMc6unskLi3QH6HuZDzVb7b5znBeY5XMUQIKPJsRTLxRX/kNe/95vGOIbSrIsNN5p6zyBtHG46Wtk3/oI7jGt0tcMG8jWUq3+LwCLl0211gCRKq5eW16wipssfyiJP1ir3I3ONtt7J5kTDZcs+shvj+h3wZDx7uJ8KupfVfW9Q0q/nidmZ9pDT3C9Rn08cdsUFtZM5MVNPnivcW7T/iwKz+4JtrFY/Uuy25RwV3GiYQUMO9cc3qb6kAizCbFwjfJYNlwwZjmz8qG3evMSGyXiDy7uYhF1tioCgL6r6gLOt9TuSFYI+J/MrDX8LTmp9xCAV/qzpGYzM4PvfkweI1jS5i0aAMVaAv/kd8YS+5C7CpHNoB3dEohqky9a8mFZo3c8vDRCWj4yQKCUNSHqlQ1dK34aYfQOg20dG0KH7qYa9ICiWH/HBAxMS64HYSGal64AOsV/ogcV6yOd71cmVSttKjNGLUM5+tV/HcYx8ahUHw6neazW2w4Rtgd9OnZIJUCdntA11xO6AQB3ul+CVk0V1718WkzkA4mK7h8jQRSMGNQ6tlZxNfJeoiU0BEXsoqZzslJD67x+HRbnGl2x5w2L0e45800sHPUaJzC08NxXnXx5VEg1+lIuh+oSoTLjnSp4Av2sWNFZx6XHOb5gmeCWbO7z9gcqnwQVBAm3zJgu5ECsb5vtNUCpWYt2tin1k4hquveLSWl4ebJY6op8fO6/Z4k30yphpBXQFTb3PzgaR4Nn4CkpYZ9IABJvG0fV7NFdTlU8CAvvD9L42ILiaKZY1qGN9Bq2c1CJn0N3D63ctnIugDcE7pRDJeGVyEIwx9VB0vnQ59XcCKyNoT3hQsHpUjVRa+Iug6Do8H5VBJFoaWXwlFRO0rPmXgMYQnDRHjhGapdlDhPnuyBVK4lgncn/a2SE8/IPapycWgJIeshSAyAK7xYHsRl5s5avHRmalGojMCmbZgElBTJQmmbnYNRwlDcIGkZtoJmmcmkkWLE2YeZNolVbm41WZoxa3P6uoH1ksgQiLsIeUbPVmavo1pWzQN4CZKStEDIKFUHC/YBAFR0z09Mf7BAJ7I0EMxC44FoyIZL8MvS2GB6kKGdnopb/EK0Ol/2r5BBxqQeracI6omBs1Uy42xI/mIt+idFsK7MhcbumZX9ipKa5Rpfig1R4cgEW0V/6t2kvHeS05aE/I2TWYbZ4P4itsvJIZJyOSGKiO4mNOrHM6HkaOR1FqZTzXbcvzyFSTaNp2u/SMMQiXjW6iiqLQ8PleVCopWipRIOmu8ge1+aIaJ98rW+c2lehOT6TQBI6cK/2jRbbvTNenhQCDg0alHcyk0v3AkTp1YFk2SZLSIBlEsYP9rLBJked+UzK05gIH8ygoiLWGUalLkgTe4iVWeoiw9FiXzB0JBAk4jyku7U99nTbNIMewJK+2OG7hvxpbFP/QEXZ9aIrUCI9227m6bc0CcaaVToVI6GxYwNL7WsVIUf+dCfXfLe7MCZ7AZ77jajcyyO6xDmFgNhhDRgajsi6oTn5wxUrJVqu9y9+2hN/85x2ENphBS5TKQlayrPTnXfES12kqovvgul2AeLdCBhCzQftXF2r30q371cb6gwwi//z4DZ9X2bV3BK+7wGkDn8d80JmtnQ9nFyjqjAaQF91tMa5f+XCT7WaHuNrjwlV8wCVXQqOwCxDECaAEhrYnUp2uZJE7p1WeZ5QTPwyJliP5hX+ejHYhVj+ugqTLEN0LhXvU/73XKd8JeWL01F/u4/76rZq/PA58ijOHCiyp6l/yJy29M67fPuN4oKyLXJ0RRqk4d/77pJ6Osk6kweHjoIZwf/xqETRV2hdQPFwfDAnpUnUiPHt/XEX/mWEnutM3PfWeQJ8qbejwHWroRzoZA8Fh+TIsXlDIjFmD5mCHtbFbxHC5pn6PyJusPns2+DykXHixGyWsVm+QPUztUlL/0hLCFh2NB6Bla7acflb40Zprlfi/RwpD/CwbZJ3ahgR530d13IGe68pfkpoFHnDEG2yOlLqSJWnRbU/8racmBnctQm/7QsyxKEScVMq1irhR3HumXM2URMV+CXTWgP8+BnLVkQ6MvsG20rRpVO5qpqnCcMkVWA8X6rvUZLJ1T0nNSRH8U1Yu8rjwALACk2QdT+LUZGiKF2/6HpV6mxO6r9nMFizbFdAGy+tvPg5DpwDPC2j5yIu1b8vlU9y77gJaSLpYfZML+EJDArtf3Eq7zqgcOY2ymQZBwxpbp9Yp2EoJwgMtik6M5R3xJ0V1W6CGZlTpxlrd1DUD2MEEOTlN0IKzY2lzn1iQ9OwXN89EQnhhdQ5vRt7gkJ4LDQF+nWV6mqLvadQXm1+9VoStcUbFsuAztGHt/hNjL4Nen62v8ddG4S2vQMeOMMDboZdzxGFiRMjtLJP5EdLFyi4jZaI2cfqfi33GE15PXSf+xXXWzEZLC0YHA27dirNkfXTtW1h7FHflXJfMHhTiLN7mpE1m4iJIkRgkpHqUBZrs5Pim514mVzB6iIy+1wmkcNKJ5/4xoynu7ao3F9aJJBphDuqQWZkVoz/2dUwc67lGrEP0pXU37iW0LJq6rpKCCexsmiJWQfoCk0GrmnFgStW6bDXfRX0TpNKYo3NijxE1TVejk7vkFBuxEEgCUz9LF5GqPeCsprbwtrb0t0+pPdnRci8BhkfrH3Rn8vKWsvsvPk80l+daNuRjojvfVomWEXUAA68/ykL4xhjrV4p//DN60w5zKtYJPz6hCXlpVTZpRf0O2fdDXUR7xlpesC0b9Z8X3OgTDqi9najV9SuMk/0TQxb8Xx1sTJt2HnvxHeWWpFQgdOLwTJD4UJGlFUsyCtUxkY++t0CqkSMDYI9cEDAxE81eG0vdlOK04qFrOn7TqujRlS09hWNkTCJ5g2SvPa5WtFnwKpgm2Ilo7tVc8q24t1UsOtvujpVYfrad5fj7WHdhoPi7ngXOcZCfC1agBoL0+zfR+GaeRjy1oX7mIa6WXZ4kFDtAmJTO/n0rxPHDChxtTfsE1x98cXp+tt1Gd9TF8F7YHqwLxdccNF0DeUfPeJRwfYy3ov6sKuRsPsd2e8TYKV10qgiqaEdLLwPclD0++yX3BTJ/pPEM0MfZxISBlFsi0dHJVX3odXeBqI+V28yvUxbOyB1xWE2ZYUOE2EsaGrnv5q8wN6F0utHa8wg2prNCSuUqs26Tr6Zp2eFyqY/4UYFqyP4Qt0mYOm4tWP5IcUX06+uhMgR4HxM9gSfW+/5Ylr0UVtf393AxQ2WMWxUVFatu7CbmWvlkB6XZITq2FkTpDqRGFqY3zbQ/sXnzIrfsfh3TR68rXVsXlQjnDZ5pZdfjgnQHrxvnMr2bQJlbhYIhLIsrgBOCozAGPBFx/oEaJmZGyKRl4N5w0WM/p0AtK1bVMZMe65E5RwYhACtYCB7EGjyYLI9ldJHyhH8S35ZXLwEOvRqBfZ/2yjJygfj5rFok7H47saDtX6JiobXEGpowMgzPQqzBIsWy9LOB+7z+RvQZk/9bUfCZcSHNj25Rmhb6V7jNNHfjXCsFpAGfLXx3Z0qHkAPBaxMwEU+ek+bAm/KZPsfEey+pKX2slW5HNC9p5UKba3+xob5tT4WRXJtpV/e0dk0pvdR/ZDWLhVjp984STuoozJ++D89AgiLQtr8avC+SPX2zPGGtySa1gEVTTdmzhrmbEqEjg2nH/19km0kAFuG552dDVJ379tNjlw8BYQV55wYSdSlsE7eGjS9AvY80CNiIQsXO7aLGUro1RLpLrW1rGdobE/e2UhHtax17+dxFCC7pza2gJdiOdmCrzv5aDDzep5E722pJH0vgA4RNO1sKkOfCPgvIX/OLQlv71WUUx/V6/Tt0YUJh0oULp8rkp8uaPxC5d4Vd3FvPx9mk0yR00uVlEZV+Wc7dOLwXAUDDcNYesBCPMrJRY9mWG/Q28MiiE7jvWX6QOBsu052nl+tFLwZjQJh4Y0/L3F0GUae0Bh4+glrn2tiJON5txXP9eYO9yhyYcwjZRIiebajFAO3ZL8GVhe0IpUvX3b7J9w3/AHQQoBYDllHN4ulaLYLMkVPHL5LX05c4IE1lGf30lWHMYcl5gWClqJxXqBjJqTcWu9XwA7CyAD4RHsll76IOAcMc5EQEJhJyUroGp8SBAEG1MrSYTZvo0f8WUXV1YU8TIXnXXYOFRKn26N2meLzDm/osC7maLAvB/QYgT6o+yy9z+oLTYtz1oXPR6nxSLHKYF2woXdkV+ysM9805cYV+LxAzJzTjUMO6wWpHcGd6JFYuWAafbmjdFnte9zcQ+iTuNtvkyxfgBzRg56ktYarUUo0PBqImwJ4v4r84yk+8uM4+pnnQl+zp2GV0I3dkTfAq8hjw2qlDq5pXb3CbZbWhFNQndY+n91N9MJwaVBHksUIdgFI0ohCtMl5kRjlrVTbmc9AMrJmUmlOcu/03Ivx/dvIOBdonl3Tnl7WYcy0q0R9peSJ63WcMGp1uVLCPJBGopbNA5XRZb5M+0/3GQNxFqRLT4lB7trAgnoiLtw74z9Yq8dVccyEGgQVmf95tQ5N1NHty8Q/vE577TZzA5exWF9iIT5Zkw4nMRGLbrQNHA/7lywGM1W6ohRXa83VFzgly9kKfKpIEc0SzppqLOHB6qiXjsTUnR2Rie+aplHES9Aoydr1SYrzv0VRB8+yz3Ycp+hTJjXbIwEDxUzOPecFEn6eDr2zARGM1e60P0wzxpdr+/vs4EwRvuIs85bL+/PQKfeeEUwu2SyyJy57OFE3OCFSl1cwOyifA+h816M9/C+NMfQzEnsEFTGEh5gLv+bOdXKDDv1JwVCT4ebquaxCPALSN95PlKZC0YuRy+1P6T61oG6Ee4Cgi9puB1CKSqUaQh3wE/tV809FM3gVdq5oScTY5W4AKK9lXGEY5zBrisK2H5g4Wvw8OyvDHa60+1CbUZHqXfp64crmItTEEV4vVltQgEXwj5Tkd9uQ1X11FwlGHFVfeDSW4r/K6tWCVvL0MH/DgNnL1bz6tbVC+vrGq+sTcIuuw0J7KvKD42ZRxcG1g3Ch0OONy7xFnej7zOxWKm0iXYO7NHfhYMJYp+bavbO+RJ1X9Q+CQB6D5FUOQWsmNso3pe54eos8dSHjR4tGbvDeFNb0HYV+2bteZ67GzCgAPlEfBu9l3do6nPOiIawlZviGN0XlpbIqcyhXsjNu3uIjhl52g27DOPHHvtYkZBYt2cF8hR4Tj0C+nkzE6zAjTj31uCdQC6gqza0FDWKWBqVauPGLSvOzc9Jk9aAMDf46XgS9qlHfmOUvd8ixD8ce1G76sJaN0XsCGopb8+pOCtjbrpRqHYVnullRV5mS1f/jDgWDfukB24AAAAAAAAAAANwgYMor5vqsukd29uY6yqHYq+3ZUQJg0U3xvtANLg0JwN/7gWq3NiSdj0quswO+jHXfMdJW72HT1VD9e/JcR35VEMxF6O0PVXeScIs7gtG53LJnAlqtf90HdXhYqpiZTG2qmBcFwcbY46zK1mYn/PStkkUDOxMAYwqC6JePTCxA6g0DPqSyTTPlgu9H94DvnlBWMCef6M6wN0PAoYYO8LDbqjBRD7HV5mPqkPLb4iS20VyRzz3XN6JGlr04BO4gkRYD+cyAAut4t7hEAAAA"></footer>
 </div>
+
+<div class="fs" id="fs" aria-live="polite">
+  <button class="fsClose" id="fsClose" type="button">✕ Schließen</button>
+  <div class="label">Ist-Kraft</div>
+  <div class="fsNum" id="fsNum">–</div>
+  <div class="fsUnit">N</div>
+  <div class="fsState" id="fsState">–</div>
+  <div class="fsSoll" id="fsSoll"></div>
+</div>
+
+<dialog id="calDlg">
+  <h2>Kalibrieren</h2>
+  <div id="calStep1">
+    <p><b>1 ·</b> Zelle komplett entlasten, es darf nichts aufliegen. Dann nullen.</p>
+    <div class="dlgBtns"><button class="primary" id="calZero" type="button">Nullen (Tara)</button></div>
+  </div>
+  <div id="calStep2" hidden>
+    <p><b>2 ·</b> Bekanntes Gewicht ruhig auflegen und seine Masse eingeben.</p>
+    <div class="calRow"><input type="number" id="calMass" min="10" max="900" step="1" value="200" inputmode="numeric"><span>g</span></div>
+    <div class="chips" id="calChips"></div>
+    <div class="dlgBtns"><button class="primary" id="calGo" type="button">Kalibrieren</button></div>
+  </div>
+  <div id="calStep3" hidden>
+    <p id="calResult"></p>
+    <p>Kontrolle, die Waage zeigt jetzt: <span class="big" id="calLive">–</span></p>
+  </div>
+  <div class="setState" id="calMsg"></div>
+  <div class="dlgBtns"><button id="calClose" type="button">Schließen</button></div>
+</dialog>
 
 <script>
 (function () {
@@ -260,7 +342,7 @@
   var root = document.documentElement;
   var el = {};
   ["pill","pillText","btnConnect","btnDemo","noBle","msg","gauge","gaugeCard","zones","track","ticks","ring","valueArc","head",
-   "targetMark","fx","num","state","setVal","setRange","btnMinus","btnPlus","chips","setState","tolVal","tolRange","tolMinus","tolPlus","tolChips","tolState","dev","peak","mode","rate",
+   "targetMark","fx","num","state","setVal","setRange","btnMinus","btnPlus","chips","setState","tolVal","tolRange","tolMinus","tolPlus","tolChips","tolState","btnTare","btnFs","btnCal","tareState","ovl","suggest","sugTxt","sugYes","sugNo","optWake","optVib","optSnd","optNote","fs","fsClose","fsNum","fsState","fsSoll","calDlg","calStep1","calStep2","calStep3","calChips","calMass","calZero","calGo","calResult","calLive","calMsg","calClose","dev","peak","mode","rate",
    "btnRec","btnCsv","btnPeak","recInfo","chart","aura"].forEach(function (k) { el[k] = $(k); });
 
   function fmt(x, d) { return x.toFixed(d).replace(".", ","); }
@@ -268,7 +350,7 @@
   function css(n) { return getComputedStyle(root).getPropertyValue(n).trim(); }
 
   /* ---------- Zustand ---------- */
-  var st = { force: 0, target: 5, tol: 5, tolOk: false, mode: 0, hx: true, zone: 0, live: false };
+  var st = { force: 0, target: 5, tol: 5, tolOk: false, fw18: false, ovl: false, mode: 0, hx: true, zone: 0, live: false };
   var shown = 0;                           // weich nachgeführter Anzeigewert
   var device = null, cmdChar = null, demoTimer = null, demoTarget = 5, demoTol = 5, isDemo = false;
   var samples = [], t0 = 0, peak = null, recording = false, rec = [];
@@ -377,6 +459,13 @@
     el.head.setAttribute("opacity", f < .004 || !st.live ? 0 : 1);
 
     el.num.textContent = st.live && st.hx ? fmt(shown, 2) : "–";
+    if (el.fs.classList.contains("on")) {
+      el.fsNum.textContent = el.num.textContent;
+      el.fsState.textContent = st.ovl ? "Überlast!" : el.state.textContent;
+      el.fsSoll.textContent = st.live ? "SOLL " + fmt(st.target, 1) + " N  ± " + st.tol + " %" : "";
+      el.fs.classList.toggle("ok", st.live && zone === 2 && !reduce);
+      el.fs.classList.toggle("alarm", st.live && (zone === 3 || st.ovl) && !reduce);
+    }
     el.gauge.classList.toggle("ok", st.live && zone === 2 && !reduce);
     el.gauge.classList.toggle("alarm", st.live && zone === 3 && !reduce);
 
@@ -403,6 +492,14 @@
     var targetChanged = Math.abs(p.target - st.target) > .001;
     if (p.tol !== undefined) { st.tolOk = true; if (p.tol !== st.tol) { st.tol = p.tol; buildZones(); } }
     st.force = p.force; st.target = p.target; st.mode = p.mode; st.hx = p.hx; st.zone = p.zone; st.live = true;
+    var fwNew = p.calF !== undefined && !st.fw18;
+    if (p.calF !== undefined) st.fw18 = true;
+    st.ovl = !!p.ovl; el.ovl.hidden = !st.ovl;
+    if (firstPacket) { firstPacket = false; afterFirstPacket(p); } else rememberDevice(p);
+    feedback(p.zone, st.ovl, Date.now());
+    if (calWait && p.cal) { calWait = null; clearTimeout(calTimer); calResult(p.cal, p.calF); }
+    if (!el.calStep3.hidden) el.calLive.textContent = fmt(p.force / 0.00981, 1) + " g";
+    if (fwNew) refreshSetUi();
     if (targetChanged) updateTickLabels();
     samples.push({ t: now - t0, f: p.force });
     while (samples.length && samples[0].t < now - t0 - WINDOW_S - 2) samples.shift();
@@ -469,6 +566,7 @@
     [el.btnMinus, el.btnPlus, el.setRange].forEach(function (x) { x.disabled = !on; });
     [].forEach.call(el.chips.children, function (b) { b.disabled = !on; });
     refreshTolUi();
+    var oc = canCmd(); el.btnTare.disabled = !oc; el.btnCal.disabled = !oc;
   }
   function setDraft(v, send) {
     draft = clamp(Math.round(v * 10) / 10, MIN_T, MAX_T);
@@ -572,20 +670,180 @@
   hold(el.tolMinus, function () { setTol(tolDraft - 1, true); }); hold(el.tolPlus, function () { setTol(tolDraft + 1, true); });
   el.tolRange.addEventListener("input", function () { setTol(+el.tolRange.value, true); });
 
+  /* ---------- Speicher im Browser ---------- */
+  var KEY = "pruefstand.v1", mem = {};
+  function loadStore() { try { var o = JSON.parse(localStorage.getItem(KEY)); if (o && typeof o === "object") return o; } catch (e) {} return mem; }
+  function saveStore(patch) {
+    var o = loadStore(); for (var k in patch) o[k] = patch[k]; mem = o;
+    try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {}
+  }
+  var prefs = loadStore();
+  var opt = { wake: prefs.wake !== false, vib: prefs.vib !== false, snd: prefs.snd === true };
+  el.optWake.checked = opt.wake; el.optVib.checked = opt.vib; el.optSnd.checked = opt.snd;
+  var notes = [];
+  if (!navigator.wakeLock) { el.optWake.disabled = true; notes.push("Bildschirm-wach wird von diesem Browser nicht unterstützt."); }
+  if (!navigator.vibrate) { el.optVib.disabled = true; notes.push("Vibration gibt es nur in Chrome auf Android, nicht auf dem iPhone."); }
+  el.optNote.textContent = notes.join(" ");
+  [["optWake", "wake"], ["optVib", "vib"], ["optSnd", "snd"]].forEach(function (a) {
+    el[a[0]].addEventListener("change", function () {
+      opt[a[1]] = el[a[0]].checked; var patch = {}; patch[a[1]] = opt[a[1]]; saveStore(patch);
+      if (a[1] === "wake") { if (opt.wake && active()) wakeOn(); else wakeOff(); }
+      if (a[1] === "snd" && opt.snd) { audio(); beep(660, 120); }
+      if (a[1] === "vib" && opt.vib) vibe(60);
+    });
+  });
+  var lastT = null, lastTol = null, sugPending = false, sugVals = null, firstPacket = false;
+  function rememberDevice(p) {
+    if (sugPending) return;
+    var t = Math.round(p.target * 10) / 10, tl = p.tol !== undefined ? p.tol : prefs.tol;
+    if (t !== lastT || tl !== lastTol) { lastT = t; lastTol = tl; var patch = { target: t }; if (tl !== undefined) patch.tol = tl; saveStore(patch); }
+  }
+  function afterFirstPacket(p) {                 // erste Daten nach dem Verbinden: gespeicherte Werte anbieten
+    var s = loadStore();
+    if (s.target !== undefined && s.tol !== undefined && p.tol !== undefined && (Math.abs(s.target - p.target) > .05 || s.tol !== p.tol)) {
+      sugVals = { target: s.target, tol: s.tol }; sugPending = true;
+      el.sugTxt.textContent = fmt(s.target, 1) + " N ± " + s.tol + " %"; el.suggest.hidden = false;
+    } else rememberDevice(p);
+  }
+  el.sugYes.addEventListener("click", function () {
+    if (sugVals) { setDraft(sugVals.target, true); if (st.tolOk) setTol(sugVals.tol, true); }
+    sugPending = false; el.suggest.hidden = true;
+  });
+  el.sugNo.addEventListener("click", function () {
+    sugPending = false; el.suggest.hidden = true; rememberDevice({ target: st.target, tol: st.tolOk ? st.tol : undefined });
+  });
+
+  /* ---------- Bildschirm wach, Ton, Vibration ---------- */
+  var wl = null, actx = null, prevZoneH = -1, lastOvlAlert = 0;
+  function active() { return isDemo || !!(device && device.gatt.connected); }
+  async function wakeOn() {
+    if (!opt.wake || !navigator.wakeLock || wl || document.visibilityState !== "visible") return;
+    try { wl = await navigator.wakeLock.request("screen"); wl.addEventListener("release", function () { wl = null; }); } catch (e) { wl = null; }
+  }
+  function wakeOff() { if (wl) { try { wl.release(); } catch (e) {} wl = null; } }
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && active()) wakeOn(); });
+  function audio() {
+    if (!actx) { var C = window.AudioContext || window.webkitAudioContext; if (C) { try { actx = new C(); } catch (e) {} } }
+    if (actx && actx.state === "suspended") { try { actx.resume(); } catch (e) {} }
+    return actx;
+  }
+  document.addEventListener("pointerdown", function () { if (opt.snd) audio(); });
+  function beep(freq, ms, vol) {
+    if (!opt.snd) return; var a = audio(); if (!a) return;
+    var o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = "sine"; o.frequency.value = freq; g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || .25, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + ms / 1000);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + ms / 1000 + .03);
+  }
+  function vibe(pattern) { if (opt.vib && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
+  function feedback(zone, ovl, nowMs) {
+    if (zone !== prevZoneH) {
+      if (prevZoneH !== -1) {
+        if (zone === 2) { vibe(70); beep(880, 140); }
+        else if (zone === 3) { vibe([160, 80, 160]); beep(330, 150); setTimeout(function () { beep(330, 150); }, 230); }
+      }
+      prevZoneH = zone;
+    }
+    if (ovl && nowMs - lastOvlAlert > 1000) { lastOvlAlert = nowMs; vibe([300, 120, 300]); beep(1000, 260, .35); }
+  }
+
+  /* ---------- Befehle: Tara, Kalibrierung ---------- */
+  function canCmd() { return isDemo || !!(device && device.gatt.connected && cmdChar && st.fw18); }
+  async function writeBuf(buf) { if (cmdChar.writeValueWithResponse) await cmdChar.writeValueWithResponse(buf); else await cmdChar.writeValue(buf); }
+  function tareMsg(t, cls) { el.tareState.textContent = t; el.tareState.className = "setState" + (cls ? " " + cls : ""); }
+  var tareTimer = null;
+  async function sendTare(onDone) {
+    var load = Math.abs(st.force);
+    if (isDemo) { setTimeout(function () { onDone(true, load); }, 800); return; }
+    await writeBuf(new Uint8Array([3]).buffer);
+    clearTimeout(tareTimer); tareTimer = setTimeout(function () { onDone(Math.abs(st.force) < .15, load); }, 2500);
+  }
+  el.btnTare.addEventListener("click", async function () {
+    if (!canCmd()) { tareMsg("Nicht verbunden oder Firmware ohne Tara-Befehl.", "bad"); return; }
+    el.btnTare.disabled = true; tareMsg("Tara läuft …", "");
+    try {
+      await sendTare(function (ok, load) {
+        refreshSetUi();
+        if (isDemo) tareMsg("Demo: Tara wirkt nur am echten Gerät.", "");
+        else if (ok) tareMsg(load > 1 ? "Tara unter Last gesetzt (vorher " + fmt(load, 2) + " N)." : "Nullpunkt gesetzt.", "ok");
+        else tareMsg("Tara gesendet, Anzeige noch " + fmt(st.force, 2) + " N. Ist die Zelle belastet?", "bad");
+      });
+    } catch (e) { refreshSetUi(); tareMsg("Senden fehlgeschlagen: " + (e.message || e), "bad"); }
+  });
+
+  var calWait = null, calTimer = null;
+  function calShow(n) { el.calStep1.hidden = n !== 1; el.calStep2.hidden = n !== 2; el.calStep3.hidden = n !== 3; }
+  function calMsg(t, cls) { el.calMsg.textContent = t; el.calMsg.className = "setState" + (cls ? " " + cls : ""); }
+  [100, 200, 500].forEach(function (v) {
+    var b = document.createElement("button"); b.type = "button"; b.textContent = v + " g";
+    b.addEventListener("click", function () { el.calMass.value = v; }); el.calChips.appendChild(b);
+  });
+  el.btnCal.addEventListener("click", function () {
+    if (!canCmd()) { tareMsg("Nicht verbunden oder Firmware ohne Kalibrierbefehl.", "bad"); return; }
+    calShow(1); calMsg(""); el.calGo.disabled = false; el.calZero.disabled = false;
+    if (el.calDlg.showModal) el.calDlg.showModal(); else el.calDlg.setAttribute("open", "");
+  });
+  el.calClose.addEventListener("click", function () { calWait = null; clearTimeout(calTimer); if (el.calDlg.close) el.calDlg.close(); else el.calDlg.removeAttribute("open"); });
+  el.calZero.addEventListener("click", async function () {
+    el.calZero.disabled = true; calMsg("Nullen …", "");
+    try {
+      await sendTare(function () { el.calZero.disabled = false; calShow(2); calMsg("Genullt. Jetzt Gewicht auflegen.", "ok"); });
+    } catch (e) { el.calZero.disabled = false; calMsg("Senden fehlgeschlagen: " + (e.message || e), "bad"); }
+  });
+  el.calGo.addEventListener("click", async function () {
+    var m = +el.calMass.value;
+    if (!(m >= 10 && m <= 900)) { calMsg("Masse zwischen 10 und 900 g eingeben.", "bad"); return; }
+    if (!isDemo && Math.abs(st.force) < .03) { calMsg("Es liegt nichts auf (Kraft ≈ 0). Gewicht auflegen.", "bad"); return; }
+    if (isDemo) { calResult(1, 1234.5); return; }
+    el.calGo.disabled = true; calMsg("Kalibriere …", "");
+    try {
+      var buf = new ArrayBuffer(5), dv = new DataView(buf); dv.setUint8(0, 4); dv.setFloat32(1, m, true);
+      calWait = true; await writeBuf(buf);
+      clearTimeout(calTimer); calTimer = setTimeout(function () { if (calWait) { calWait = null; el.calGo.disabled = false; calMsg("Keine Antwort vom Gerät.", "bad"); } }, 5000);
+    } catch (e) { calWait = null; el.calGo.disabled = false; calMsg("Senden fehlgeschlagen: " + (e.message || e), "bad"); }
+  });
+  function calResult(code, factor) {
+    el.calGo.disabled = false;
+    if (code === 1 || code === 3) {
+      calShow(3); calMsg("", "");
+      el.calResult.textContent = (code === 1 ? "Kalibriert und dauerhaft gespeichert." : "Faktor gilt jetzt, konnte aber nicht dauerhaft gespeichert werden.") +
+        (factor !== undefined ? " Faktor: " + fmt(factor, 1) + " Rohwert/g." : "");
+      el.calResult.className = code === 1 ? "" : "bad";
+    } else if (code === 2) calMsg("Kein Gewicht erkannt. Gewicht auflegen und erneut versuchen.", "bad");
+    else if (code === 4) calMsg("HX711 nicht gefunden.", "bad");
+    else calMsg("Ungültige Masse.", "bad");
+  }
+
+  /* ---------- Vollbild ---------- */
+  function fsOpen() {
+    el.fs.classList.add("on");
+    try { if (el.fs.requestFullscreen) { var r = el.fs.requestFullscreen(); if (r && r.catch) r.catch(function () {}); } } catch (e) {}
+    if (active()) wakeOn();
+  }
+  function fsClose() {
+    el.fs.classList.remove("on");
+    if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (e) {} }
+  }
+  el.btnFs.addEventListener("click", fsOpen);
+  el.fsClose.addEventListener("click", fsClose);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && el.fs.classList.contains("on")) fsClose(); });
+
   /* ---------- Bluetooth ---------- */
   function parse(dv) {
-    return { force: dv.getFloat32(0, true), target: dv.getFloat32(4, true), mode: dv.getUint8(8), hx: (dv.getUint8(9) & 1) === 1, zone: dv.getUint8(10), tol: dv.byteLength >= 13 ? dv.getUint8(12) : undefined };
+    return { force: dv.getFloat32(0, true), target: dv.getFloat32(4, true), mode: dv.getUint8(8), hx: (dv.getUint8(9) & 1) === 1, zone: dv.getUint8(10), tol: dv.byteLength >= 13 ? dv.getUint8(12) : undefined,
+      ovl: (dv.getUint8(9) & 2) === 2, cal: dv.byteLength >= 18 ? dv.getUint8(13) : undefined, calF: dv.byteLength >= 18 ? dv.getFloat32(14, true) : undefined };
   }
   function onDisconnected() {
     st.live = false; cmdChar = null; setPill("", "Getrennt");
-    el.btnConnect.textContent = "Verbinden"; el.btnConnect.disabled = false;
+    el.btnConnect.textContent = "Neu verbinden"; el.btnConnect.disabled = false; wakeOff();
+    st.ovl = false; el.ovl.hidden = true; st.fw18 = false; sugPending = false; el.suggest.hidden = true; prevZoneH = -1; calWait = null;
     el.state.textContent = "Verbindung getrennt"; st.tolOk = false; refreshSetUi(); setStateMsg("Zum Einstellen erst verbinden.", ""); tolMsg("Zum Einstellen erst verbinden.", "");
   }
-  async function connect() {
+  async function connect(silent) {
     stopDemo();
     if (!navigator.bluetooth) { el.noBle.hidden = false; return; }
     try {
-      el.btnConnect.disabled = true; setMsg(""); setPill("busy", "Suche Gerät …");
+      el.btnConnect.disabled = true; setMsg(""); setPill("busy", device ? "Verbinde …" : "Suche Gerät …");
       if (!device) {
         device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE] }, { name: "Pruefstand_BLE" }], optionalServices: [SERVICE] });
         device.addEventListener("gattserverdisconnected", onDisconnected);
@@ -596,6 +854,7 @@
       var ch = await svc.getCharacteristic(DATA);
       try { cmdChar = await svc.getCharacteristic(CMD); } catch (e) { cmdChar = null; }
       ch.addEventListener("characteristicvaluechanged", function (e) { handle(parse(e.target.value)); });
+      firstPacket = true; prevZoneH = -1; wakeOn(); audio();
       await ch.startNotifications();
       setPill("on", "Verbunden mit " + (device.name || "Prüfstand"));
       el.btnConnect.textContent = "Trennen"; el.btnConnect.disabled = false;
@@ -603,22 +862,33 @@
       if (cmdChar) setStateMsg("Soll-Kraft einstellen: Wert ändern, er gilt sofort am Gerät.", "");
       else { [el.btnMinus, el.btnPlus, el.setRange].forEach(function (x) { x.disabled = true; }); setStateMsg("Diese Firmware kennt keinen Soll-Befehl. Bitte neue Firmware laden.", "bad"); }
     } catch (err) {
-      setPill("", "Nicht verbunden"); el.btnConnect.disabled = false; el.btnConnect.textContent = "Verbinden";
-      setMsg(err && err.name === "NotFoundError" ? "Kein Gerät ausgewählt." : "Fehler: " + ((err && err.message) || err));
+      setPill("", silent ? "Gerät nicht in Reichweite" : "Nicht verbunden"); el.btnConnect.disabled = false; el.btnConnect.textContent = device ? "Neu verbinden" : "Verbinden";
+      if (!silent) setMsg(err && err.name === "NotFoundError" ? "Kein Gerät ausgewählt." : "Fehler: " + ((err && err.message) || err));
     }
   }
   function disconnect() { if (device && device.gatt.connected) device.gatt.disconnect(); }
-  el.btnConnect.addEventListener("click", function () { if (device && device.gatt.connected) disconnect(); else connect(); });
+  el.btnConnect.addEventListener("click", function () { if (device && device.gatt.connected) disconnect(); else connect(false); });
+  async function tryAuto() {                    // früher gekoppeltes Gerät ohne Auswahlfenster wiederfinden
+    if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+    try {
+      var list = await navigator.bluetooth.getDevices();
+      var d = null; for (var i = 0; i < list.length; i++) if (list[i].name === "Pruefstand_BLE") d = list[i];
+      if (!d) return;
+      device = d; device.addEventListener("gattserverdisconnected", onDisconnected);
+      el.btnConnect.textContent = "Neu verbinden"; setPill("", "Gerät bekannt");
+      connect(true);
+    } catch (e) {}
+  }
 
   /* ---------- Demo ---------- */
   function stopDemo() {
     if (!demoTimer) return;
-    clearInterval(demoTimer); demoTimer = null; isDemo = false; st.live = false;
+    clearInterval(demoTimer); demoTimer = null; isDemo = false; st.live = false; wakeOff(); st.ovl = false; el.ovl.hidden = true; prevZoneH = -1;
     el.btnDemo.textContent = "Demo"; el.state.textContent = "Keine Verbindung"; refreshSetUi(); setStateMsg("Zum Einstellen erst verbinden.", ""); tolMsg("Zum Einstellen erst verbinden.", "");
   }
   el.btnDemo.addEventListener("click", function () {
     if (demoTimer) { stopDemo(); setPill("", "Nicht verbunden"); return; }
-    disconnect(); samples = []; t0 = 0; peak = null; isDemo = true; demoTarget = draft; demoTol = tolDraft;
+    disconnect(); samples = []; t0 = 0; peak = null; isDemo = true; demoTarget = draft; demoTol = tolDraft; wakeOn(); audio(); firstPacket = false;
     el.btnDemo.textContent = "Demo beenden"; setPill("busy", "Demo (simulierte Daten)");
     refreshSetUi(); setStateMsg("Demo: Soll-Kraft ändern wirkt auf die simulierte Kraft.", "");
     var k = 0;
@@ -629,7 +899,7 @@
       var f = r * T + (Math.random() - .5) * .05 * (T / 5);
       var rr = Math.max(0, f) / T;
       var tl = demoTol / 100;
-      handle({ force: f, target: T, mode: 0, hx: true, zone: rr < .7 ? 0 : rr < 1 - tl ? 1 : rr <= 1 + tl ? 2 : 3, tol: demoTol });
+      handle({ force: f, target: T, mode: 0, hx: true, zone: rr < .7 ? 0 : rr < 1 - tl ? 1 : rr <= 1 + tl ? 2 : 3, tol: demoTol, ovl: f >= 9.5 });
     }, 100);
   });
 
@@ -652,7 +922,7 @@
 
   window.addEventListener("resize", drawChart);
   if (!navigator.bluetooth) el.noBle.hidden = false;
-  updateTickLabels(); refreshSetUi(); drawChart();
+  updateTickLabels(); refreshSetUi(); drawChart(); tryAuto();
   requestAnimationFrame(frame);
 })();
 </script>
