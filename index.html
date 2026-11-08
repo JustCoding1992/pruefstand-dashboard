@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prüfstand Dashboard</title>
+<style>
+  /* Layout: eine Spalte auf dem Handy, ab 900 px Messwert links und Verlauf rechts.
+     Zonenfarben entsprechen der RGB-LED am Prüfstand. */
+  :root {
+    --bg: #eef1f4; --panel: #ffffff; --fg: #14202b; --muted: #5d6b79; --line: #d5dce3;
+    --accent: #0b6bcb;
+    --z0: #1f5fd1; --z1: #d97a00; --z2: #138a3c; --z3: #cf2a2a;
+    --zone: var(--z0);
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1319; --panel: #171e26; --fg: #e8eef4; --muted: #8b99a7; --line: #2a3541;
+      --accent: #5aa9ff; --z0: #5b8dff; --z1: #ffa11a; --z2: #2fd06a; --z3: #ff5757; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1319; --panel: #171e26; --fg: #e8eef4; --muted: #8b99a7; --line: #2a3541;
+    --accent: #5aa9ff; --z0: #5b8dff; --z1: #ffa11a; --z2: #2fd06a; --z3: #ff5757; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px;
+    padding-block: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  h1 { font-size: 1.15rem; margin: 0; letter-spacing: .01em; flex: 1 1 auto; min-width: 0; }
+  h1 small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+          border: 1px solid var(--line); background: var(--panel); font-size: .85rem; white-space: nowrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .pill.on .dot { background: var(--z2); }
+  .pill.busy .dot { background: var(--z1); }
+  button {
+    font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 14px; cursor: pointer; min-height: 40px;
+  }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  main { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { main { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+  .live { border-top: 6px solid var(--zone); }
+  .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
+  .big { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(3.4rem, 17vw, 5.6rem);
+         line-height: 1; font-weight: 600; color: var(--zone); margin: 6px 0 2px; }
+  .big span { font-size: .4em; color: var(--muted); margin-left: .2em; font-weight: 400; }
+  .status { font-weight: 600; color: var(--zone); min-height: 1.4em; }
+  .bar { position: relative; height: 22px; border-radius: 6px; border: 1px solid var(--line); margin: 16px 0 6px; overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--zone); transition: width .1s linear; }
+  .bar b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--fg); opacity: .75; }
+  .scale { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 16px 0 0; }
+  dt { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
+  dd { margin: 2px 0 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.2rem; }
+  canvas { width: 100%; height: 280px; display: block; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .row .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 0; }
+  .warn { border: 1px solid var(--z1); border-radius: 8px; padding: 10px 12px; font-size: .9rem; }
+  details summary { cursor: pointer; color: var(--muted); }
+  details ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: .85rem; }
+  code { font-family: var(--mono); font-size: .85em; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Prüfstand Dashboard<small>Dreipunkt-Biegung · Arduino Nano 33 BLE</small></h1>
+    <span class="pill" id="pill"><span class="dot"></span><span id="pillText">Nicht verbunden</span></span>
+    <button class="primary" id="btnConnect" type="button">Verbinden</button>
+    <button id="btnDemo" type="button">Demo</button>
+  </header>
+
+  <div class="warn" id="noBle" hidden>
+    Dieser Browser kann kein Web Bluetooth. Nutze Chrome oder Edge (Windows, macOS, Linux, Android).
+    Auf dem iPhone / iPad geht das nur mit der App „Bluefy“.
+    Mit „Demo“ siehst du das Dashboard mit Testdaten.
+  </div>
+
+  <main>
+    <section class="card live" aria-live="off">
+      <div class="label">Ist-Kraft</div>
+      <div class="big"><b id="force" style="font-weight:inherit">–</b><span>N</span></div>
+      <div class="status" id="zoneText">Keine Verbindung</div>
+      <div class="bar" aria-hidden="true"><i id="barFill"></i><b id="barMark"></b></div>
+      <div class="scale"><span>0</span><span id="scaleTarget">Soll</span><span id="scaleMax"></span></div>
+      <dl>
+        <div><dt>Soll-Kraft</dt><dd id="target">–</dd></div>
+        <div><dt>Abweichung</dt><dd id="dev">–</dd></div>
+        <div><dt>Spitzenwert</dt><dd id="peak">–</dd></div>
+        <div><dt>Gerät zeigt</dt><dd id="mode" style="font-family:var(--sans);font-size:1rem">–</dd></div>
+      </dl>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <div class="label">Verlauf (letzte 60 s)</div>
+        <div class="btns">
+          <button id="btnRec" type="button">Aufzeichnen</button>
+          <button id="btnCsv" type="button" disabled>CSV speichern</button>
+          <button id="btnPeak" type="button">Spitzenwert löschen</button>
+        </div>
+      </div>
+      <canvas id="chart" role="img" aria-label="Kraftverlauf der letzten 60 Sekunden"></canvas>
+      <p class="note" id="recInfo" style="margin-top:8px">Aufzeichnung aus.</p>
+    </section>
+  </main>
+
+  <details class="card">
+    <summary>Hinweise zur Verbindung</summary>
+    <ul>
+      <li>Gerät in der Liste: <code>Pruefstand_BLE</code>. Es kann immer nur ein Gerät verbunden sein.</li>
+      <li>Auf dem Handy muss die Seite über https geöffnet werden (oder lokal als Datei am PC).</li>
+      <li>Android: Bluetooth und Standort einschalten, sonst findet Chrome das Gerät nicht.</li>
+      <li>Die Anzeige gleicht den Taster-Zuständen am Gerät: Ist, Soll, Farbzone und Menüpunkt.</li>
+    </ul>
+  </details>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var SERVICE = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+  var DATA = "beb5483e-36e1-4688-b7f5-ea07361b26a9";
+  var MODES = ["Messung", "Menü", "Soll-Kraft einstellen", "Kalibrierung", "Testmenü", "Test läuft"];
+  var ZONES = [
+    { t: "Unter 70 % des Ziels", v: "--z0" },
+    { t: "Nähert sich dem Ziel", v: "--z1" },
+    { t: "Ziel erreicht", v: "--z2" },
+    { t: "Ziel überschritten", v: "--z3" }
+  ];
+  var WINDOW_S = 60;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    pill: $("pill"), pillText: $("pillText"), connect: $("btnConnect"), demo: $("btnDemo"),
+    force: $("force"), zoneText: $("zoneText"), barFill: $("barFill"), barMark: $("barMark"),
+    target: $("target"), dev: $("dev"), peak: $("peak"), mode: $("mode"),
+    scaleTarget: $("scaleTarget"), scaleMax: $("scaleMax"),
+    rec: $("btnRec"), csv: $("btnCsv"), peakBtn: $("btnPeak"), recInfo: $("recInfo"),
+    canvas: $("chart"), noBle: $("noBle")
+  };
+
+  var device = null, server = null, demoTimer = null;
+  var samples = [];            // {t (s), f, s} fuer den Verlauf
+  var t0 = 0, peak = null, last = null;
+  var recording = false, rec = [];
+
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function fmt(x, d) { return x.toFixed(d).replace(".", ","); }
+
+  function setState(kind, text) {
+    el.pill.className = "pill " + kind;
+    el.pillText.textContent = text;
+  }
+
+  function handle(p) {            // p: {force, target, mode, hx, zone}
+    var now = performance.now() / 1000;
+    if (!t0) t0 = now;
+    last = p;
+    samples.push({ t: now - t0, f: p.force, s: p.target });
+    while (samples.length && samples[0].t < now - t0 - WINDOW_S - 2) samples.shift();
+    if (peak === null || p.force > peak) peak = p.force;
+    if (recording) rec.push([now - t0, p.force, p.target, p.mode, p.zone]);
+    render();
+  }
+
+  function render() {
+    var p = last;
+    if (!p) return;
+    var zone = ZONES[p.zone] || ZONES[0];
+    document.documentElement.style.setProperty("--zone", "var(" + zone.v + ")");
+    el.force.textContent = p.hx ? fmt(p.force, 2) : "–";
+    el.zoneText.textContent = p.hx ? zone.t : "HX711 nicht gefunden";
+    el.target.textContent = fmt(p.target, 1) + " N";
+    var dev = p.target > 0 ? (p.force - p.target) / p.target * 100 : 0;
+    el.dev.textContent = (dev > 0 ? "+" : "") + fmt(dev, 0) + " %";
+    el.peak.textContent = peak === null ? "–" : fmt(peak, 2) + " N";
+    el.mode.textContent = MODES[p.mode] || ("Modus " + p.mode);
+    var maxN = p.target * 1.25;
+    el.barFill.style.width = Math.max(0, Math.min(100, Math.max(0, p.force) / maxN * 100)) + "%";
+    el.barMark.style.left = (p.target / maxN * 100) + "%";
+    el.scaleTarget.textContent = "Soll " + fmt(p.target, 1) + " N";
+    el.scaleMax.textContent = fmt(maxN, 1) + " N";
+    if (recording) el.recInfo.textContent = "Aufzeichnung läuft: " + rec.length + " Werte.";
+    drawChart();
+  }
+
+  function drawChart() {
+    var c = el.canvas, dpr = window.devicePixelRatio || 1;
+    var w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    }
+    var g = c.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    var L = 40, R = 8, T = 8, B = 22, pw = w - L - R, ph = h - T - B;
+    var target = last ? last.target : 5;
+    var maxF = Math.max(target * 1.3, 1);
+    samples.forEach(function (s) { if (s.f > maxF) maxF = s.f * 1.05; });
+    var tEnd = samples.length ? samples[samples.length - 1].t : 0, tStart = tEnd - WINDOW_S;
+    function X(t) { return L + (t - tStart) / WINDOW_S * pw; }
+    function Y(f) { return T + ph - Math.max(0, f) / maxF * ph; }
+    var line = css("--line"), muted = css("--muted");
+    g.font = "11px " + css("--mono");
+    g.lineWidth = 1; g.strokeStyle = line; g.fillStyle = muted;
+    g.textAlign = "right"; g.textBaseline = "middle";
+    var step = maxF > 12 ? 5 : (maxF > 5 ? 2 : 1);
+    for (var v = 0; v <= maxF; v += step) {
+      g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(w - R, Y(v) + .5); g.stroke();
+      g.fillText(String(v), L - 6, Y(v));
+    }
+    g.textAlign = "center"; g.textBaseline = "top";
+    [0, 20, 40, 60].forEach(function (a) {
+      g.fillText("-" + (60 - a) + " s", X(tStart + a), h - B + 6);
+    });
+    // Zielband 95-105 %
+    g.fillStyle = css("--z2"); g.globalAlpha = .16;
+    g.fillRect(L, Y(target * 1.05), pw, Y(target * .95) - Y(target * 1.05));
+    g.globalAlpha = 1;
+    g.strokeStyle = css("--z2"); g.setLineDash([5, 4]);
+    g.beginPath(); g.moveTo(L, Y(target)); g.lineTo(w - R, Y(target)); g.stroke();
+    g.setLineDash([]);
+    if (samples.length > 1) {
+      g.strokeStyle = css("--accent"); g.lineWidth = 2; g.lineJoin = "round";
+      g.beginPath();
+      samples.forEach(function (s, i) {
+        var x = X(s.t), y = Y(s.f);
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      });
+      g.stroke();
+      var e = samples[samples.length - 1];
+      g.fillStyle = css("--accent");
+      g.beginPath(); g.arc(X(e.t), Y(e.f), 4, 0, 6.2832); g.fill();
+    }
+    g.fillStyle = muted; g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText("N", 4, 2);
+  }
+
+  // ---------- Bluetooth ----------
+  function parse(dv) {
+    return {
+      force: dv.getFloat32(0, true),
+      target: dv.getFloat32(4, true),
+      mode: dv.getUint8(8),
+      hx: (dv.getUint8(9) & 1) === 1,
+      zone: dv.getUint8(10)
+    };
+  }
+
+  function onDisconnected() {
+    setState("", "Getrennt");
+    el.connect.textContent = "Verbinden";
+    el.connect.disabled = false;
+    el.zoneText.textContent = "Verbindung getrennt";
+  }
+
+  async function connect() {
+    stopDemo();
+    if (!navigator.bluetooth) { el.noBle.hidden = false; return; }
+    try {
+      el.connect.disabled = true;
+      setState("busy", "Suche Gerät …");
+      if (!device) {
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE] }, { name: "Pruefstand_BLE" }],
+          optionalServices: [SERVICE]
+        });
+        device.addEventListener("gattserverdisconnected", onDisconnected);
+      }
+      setState("busy", "Verbinde …");
+      server = await device.gatt.connect();
+      var svc = await server.getPrimaryService(SERVICE);
+      var ch = await svc.getCharacteristic(DATA);
+      ch.addEventListener("characteristicvaluechanged", function (e) { handle(parse(e.target.value)); });
+      await ch.startNotifications();
+      setState("on", "Verbunden mit " + (device.name || "Prüfstand"));
+      el.connect.textContent = "Trennen";
+      el.connect.disabled = false;
+    } catch (err) {
+      setState("", "Nicht verbunden");
+      el.connect.disabled = false;
+      el.connect.textContent = "Verbinden";
+      if (err && err.name !== "NotFoundError") el.zoneText.textContent = "Fehler: " + (err.message || err);
+      else el.zoneText.textContent = "Kein Gerät ausgewählt";
+    }
+  }
+
+  function disconnect() {
+    if (device && device.gatt.connected) device.gatt.disconnect();
+  }
+
+  el.connect.addEventListener("click", function () {
+    if (device && device.gatt.connected) disconnect(); else connect();
+  });
+
+  // ---------- Demo ----------
+  function stopDemo() {
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; el.demo.textContent = "Demo"; }
+  }
+  el.demo.addEventListener("click", function () {
+    if (demoTimer) { stopDemo(); setState("", "Nicht verbunden"); return; }
+    disconnect();
+    samples = []; t0 = 0; peak = null;
+    el.demo.textContent = "Demo beenden";
+    setState("busy", "Demo (simulierte Daten)");
+    var k = 0, target = 5;
+    demoTimer = setInterval(function () {
+      k++;
+      var ph = (k % 300) / 300;                       // 30 s Zyklus: Last aufbauen, halten, abbauen
+      var f = ph < .5 ? ph * 2 * 5.6 : (ph < .7 ? 5.2 : (1 - (ph - .7) / .3) * 5.2);
+      f += (Math.random() - .5) * .06;
+      var r = Math.max(0, f) / target;
+      handle({ force: f, target: target, mode: 0, hx: true, zone: r < .7 ? 0 : r < .95 ? 1 : r <= 1.05 ? 2 : 3 });
+    }, 100);
+  });
+
+  // ---------- Aufzeichnung ----------
+  el.rec.addEventListener("click", function () {
+    recording = !recording;
+    if (recording) { rec = []; el.rec.textContent = "Stopp"; el.csv.disabled = true; }
+    else {
+      el.rec.textContent = "Aufzeichnen";
+      el.csv.disabled = rec.length === 0;
+      el.recInfo.textContent = rec.length + " Werte aufgezeichnet.";
+    }
+  });
+  el.csv.addEventListener("click", function () {
+    var lines = ["Zeit_s;Kraft_N;Soll_N;Modus;Zone"];
+    rec.forEach(function (r) {
+      lines.push([r[0].toFixed(2), r[1].toFixed(3), r[2].toFixed(2), r[3], r[4]].join(";").replace(/\./g, ","));
+    });
+    var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    var d = new Date(), pad = function (n) { return String(n).padStart(2, "0"); };
+    a.href = URL.createObjectURL(blob);
+    a.download = "pruefstand_" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "_" +
+                 pad(d.getHours()) + pad(d.getMinutes()) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  });
+  el.peakBtn.addEventListener("click", function () { peak = null; render(); });
+
+  window.addEventListener("resize", drawChart);
+  if (!navigator.bluetooth) el.noBle.hidden = false;
+  drawChart();
+})();
+</script>
+</body>
+</html>
