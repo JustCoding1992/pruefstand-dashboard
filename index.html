@@ -82,9 +82,8 @@
   /* ---------- Rundanzeige ---------- */
   .gaugeCard { padding: 10px 10px 18px; overflow: hidden; }
   .gauge { position: relative; width: 100%; max-width: 540px; aspect-ratio: 440 / 372; margin: 0 auto; }
-  .gauge svg, .gauge canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .gauge svg { overflow: visible; }
-  .gauge canvas { pointer-events: none; }
   .gauge .valueArc { filter: drop-shadow(0 0 calc(var(--glow) * var(--glowk)) var(--zone)); }
   .gauge .head { filter: drop-shadow(0 0 calc(var(--glow) * var(--glowk) * 1.4) var(--zone)); }
   .gauge .ring { fill: none; stroke: var(--zone); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; }
@@ -209,7 +208,6 @@
             <circle id="head" class="head" r="9" fill="#fff" opacity="0"/>
             <g id="targetMark"></g>
           </svg>
-          <canvas id="fx" aria-hidden="true"></canvas>
           <div class="center">
             <div class="label">Ist-Kraft</div>
             <div class="num" id="num">–</div>
@@ -342,7 +340,7 @@
   var root = document.documentElement;
   var el = {};
   ["pill","pillText","btnConnect","btnDemo","noBle","msg","gauge","gaugeCard","zones","track","ticks","ring","valueArc","head",
-   "targetMark","fx","num","state","setVal","setRange","btnMinus","btnPlus","chips","setState","tolVal","tolRange","tolMinus","tolPlus","tolChips","tolState","btnTare","btnFs","btnCal","tareState","ovl","suggest","sugTxt","sugYes","sugNo","optWake","optVib","optSnd","optNote","fs","fsClose","fsNum","fsState","fsSoll","calDlg","calStep1","calStep2","calStep3","calChips","calMass","calZero","calGo","calResult","calLive","calMsg","calClose","dev","peak","mode","rate",
+   "targetMark","num","state","setVal","setRange","btnMinus","btnPlus","chips","setState","tolVal","tolRange","tolMinus","tolPlus","tolChips","tolState","btnTare","btnFs","btnCal","tareState","ovl","suggest","sugTxt","sugYes","sugNo","optWake","optVib","optSnd","optNote","fs","fsClose","fsNum","fsState","fsSoll","calDlg","calStep1","calStep2","calStep3","calChips","calMass","calZero","calGo","calResult","calLive","calMsg","calClose","dev","peak","mode","rate",
    "btnRec","btnCsv","btnPeak","recInfo","chart","aura"].forEach(function (k) { el[k] = $(k); });
 
   function fmt(x, d) { return x.toFixed(d).replace(".", ","); }
@@ -408,34 +406,6 @@
     }
   }
 
-  /* ---------- Funken (Partikel) ---------- */
-  var fx = el.fx.getContext("2d"), parts = [], fxW = 0, fxH = 0, lastSpawn = 0;
-  function fitFx() {
-    var d = window.devicePixelRatio || 1, w = el.fx.clientWidth, h = el.fx.clientHeight;
-    if (el.fx.width !== Math.round(w * d)) { el.fx.width = Math.round(w * d); el.fx.height = Math.round(h * d); }
-    fxW = w; fxH = h; fx.setTransform(d, 0, 0, d, 0, 0);
-  }
-  function spawn(n, x, y, color, power) {
-    for (var i = 0; i < n && parts.length < 220; i++) {
-      var a = Math.random() * 6.2832, s = (30 + Math.random() * 90) * power;
-      parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: 0, max: .5 + Math.random() * .7, r: .8 + Math.random() * 2, c: color });
-    }
-  }
-  function drawFx(dt) {
-    fitFx();
-    fx.clearRect(0, 0, fxW, fxH);
-    fx.globalCompositeOperation = "lighter";
-    for (var i = parts.length - 1; i >= 0; i--) {
-      var p = parts[i]; p.life += dt;
-      if (p.life >= p.max) { parts.splice(i, 1); continue; }
-      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .985; p.vy = p.vy * .985 + 25 * dt;
-      var k = 1 - p.life / p.max;
-      fx.globalAlpha = k * .9; fx.fillStyle = p.c;
-      fx.beginPath(); fx.arc(p.x, p.y, p.r * (.5 + k), 0, 6.2832); fx.fill();
-    }
-    fx.globalAlpha = 1; fx.globalCompositeOperation = "source-over";
-  }
-
   /* ---------- Animationsschleife ---------- */
   var tPrev = performance.now(), prevZone = -1;
   function frame(now) {
@@ -469,18 +439,6 @@
     el.gauge.classList.toggle("ok", st.live && zone === 2 && !reduce);
     el.gauge.classList.toggle("alarm", st.live && zone === 3 && !reduce);
 
-    if (!reduce) {
-      if (st.live && ratio > .03) {
-        var rate = 6 + 90 * clamp(ratio, 0, 1.1) * clamp(ratio, 0, 1.1);
-        lastSpawn += dt * rate;
-        var n = Math.floor(lastSpawn); lastSpawn -= n;
-        if (n) spawn(n, h[0] / 440 * fxW, (h[1] - 8) / 372 * fxH, css(ZONES[zone].v), .55 + ratio * .6);
-      }
-      if (zone !== prevZone && st.live && zone >= 2 && prevZone < zone) {      // Zone erreicht: Funkenstoß
-        spawn(zone === 2 ? 50 : 80, h[0] / 440 * fxW, (h[1] - 8) / 372 * fxH, css(ZONES[zone].v), 1.8);
-      }
-      drawFx(dt);
-    }
     prevZone = zone;
     requestAnimationFrame(frame);
   }
