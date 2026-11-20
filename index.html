@@ -20,7 +20,6 @@
     --glow: 8px; --aura: 8%; --glowk: 1;
     --display: "Big Shoulders Display", "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
     --num: "Chivo Mono", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-    --fmax: .36;
     --sans: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: "Chivo Mono", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
     color-scheme: dark;
@@ -31,7 +30,7 @@
       --bg: #e9eef3; --bg2: #dfe6ed; --panel: #ffffff; --panel2: #f2f5f8;
       --fg: #111c26; --muted: #596a7a; --line: #cfd8e1; --track: #e1e8ef;
       --accent: #0b6bcb; --z0: #2a62d9; --z1: #d97a00; --z2: #12a04a; --z3: #d62b2b;
-      --glowk: .45; --fmax: .26; color-scheme: light;
+      --glowk: .45; color-scheme: light;
     }
   }
   * { box-sizing: border-box; }
@@ -50,18 +49,7 @@
       linear-gradient(180deg, var(--bg), var(--bg2));
     transition: background .3s;
   }
-  /* Interferenzfarben wie im Polariskop: Streifen wandern und werden mit steigender Kraft kräftiger */
-  .fringe {
-    position: fixed; inset: -20% -10%; z-index: 0; pointer-events: none;
-    background: repeating-linear-gradient(112deg,
-      #22232c 0px, #6f7080 46px, #f1ebb0 92px, #eaa23c 128px, #cf4256 164px, #7a2f93 200px,
-      #2f56cf 240px, #3fb1a6 280px, #86c76a 318px, #22232c 360px);
-    background-position: calc(var(--fr, 0) * 1px) 0;
-    opacity: calc(.035 + var(--fi, 0) * var(--fmax));
-    -webkit-mask-image: radial-gradient(70% 60% at 22% 18%, #000, transparent 78%);
-            mask-image: radial-gradient(70% 60% at 22% 18%, #000, transparent 78%);
-  }
-  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; display: grid; gap: 26px; }
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
 
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
   .brand { flex: 1 1 150px; min-width: 0; }
@@ -92,15 +80,14 @@
   .warn { border: 1px solid var(--z1); border-radius: 10px; padding: 10px 14px; font-size: .92rem; background: var(--panel); }
   .msg { color: var(--muted); font-size: .9rem; min-height: 1.2em; margin: -6px 0 0; }
 
-  main { display: grid; gap: 40px; grid-template-columns: minmax(0, 1fr); }
+  main { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 960px) { main { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; } }
-  .col { display: grid; gap: 34px; align-content: start; min-width: 0; }
-  .card { background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 20px 0 0; min-width: 0; }
-  details.card { padding-top: 14px; }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-width: 0; }
   .label { color: var(--muted); font: 400 .8rem var(--mono); letter-spacing: .01em; }
 
   /* ---------- Rundanzeige ---------- */
-  .gaugeCard { padding: 4px 0 6px; border-top: 0; overflow: visible; }
+  .gaugeCard { padding: 10px 10px 18px; overflow: hidden; }
   .gauge { position: relative; width: 100%; max-width: 540px; aspect-ratio: 440 / 372; margin: 0 auto; }
   .gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .gauge svg { overflow: visible; }
@@ -176,9 +163,9 @@
   .big { font: 600 2rem var(--mono); }
 
   /* ---------- Kennwerte ---------- */
-  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   @media (min-width: 560px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-  .tile { background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 0 0; min-width: 0; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
   .tile b { display: block; margin-top: 6px; font: 300 1.7rem/1.1 var(--num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .tile b.txt { font: 600 1.15rem/1.2 var(--display); letter-spacing: .04em; text-transform: uppercase; }
 
@@ -198,7 +185,6 @@
 </head>
 <body>
 <div class="aura" id="aura"></div>
-<div class="fringe" aria-hidden="true"></div>
 <div class="wrap">
   <header>
     <div class="brand"><span class="meta">Modul Photonik · Prof. Dr. Dr. hab. Andrea Ehrmann</span><h1>Prüfstand</h1><small>Dreipunkt-Biegung · Arduino Nano 33 BLE</small></div>
@@ -446,8 +432,6 @@
 
     var inten = st.live ? clamp(ratio, 0, 1.15) : 0;
     root.style.setProperty("--glow", (4 + 30 * inten).toFixed(1) + "px");
-    root.style.setProperty("--fi", clamp(inten, 0, 1.1).toFixed(3));
-    root.style.setProperty("--fr", (ratio * 300).toFixed(0));
     el.ribbonFill.style.width = (st.live ? Math.round(f * 1000) / 10 : 0) + "%";
     root.style.setProperty("--aura", (st.live ? 7 + 34 * clamp(inten, 0, 1) : 6).toFixed(1) + "%");
 
