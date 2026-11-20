@@ -88,10 +88,8 @@
   .gauge .head { filter: drop-shadow(0 0 calc(var(--glow) * var(--glowk) * 1.4) var(--zone)); }
   .gauge .ring { fill: none; stroke: var(--zone); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; }
   .gauge.ok .ring { animation: ring 1.4s ease-out infinite; }
-  .gauge.alarm { animation: shake .09s linear infinite; }
   .gauge.alarm .ring { animation: ring .6s ease-out infinite; }
   @keyframes ring { 0% { opacity: .75; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.12); } }
-  @keyframes shake { 0% { transform: translate(1.5px, 0); } 50% { transform: translate(-1.5px, 1px); } 100% { transform: translate(1px, -1px); } }
   .center { position: absolute; left: 0; right: 0; top: 57%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
   .center .label { margin-bottom: 2px; }
   .num { font: 600 clamp(4rem, 17vw, 6.4rem)/.95 var(--display); font-variant-numeric: tabular-nums; letter-spacing: .01em;
@@ -173,7 +171,7 @@
   code { font-family: var(--mono); font-size: .86em; }
 
   @media (prefers-reduced-motion: reduce) {
-    .gauge.alarm, .gauge.alarm .num, .gauge.ok .num, .gauge.ok .ring, .gauge.alarm .ring, .pill.busy .dot { animation: none; }
+    .gauge.alarm .num, .gauge.ok .num, .gauge.ok .ring, .gauge.alarm .ring, .pill.busy .dot { animation: none; }
   }
 </style>
 </head>
